@@ -3,7 +3,7 @@ from flask_socketio import SocketIO, emit
 import os
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'super-secret-key-change-me-12345'
+app.config['SECRET_KEY'] = 'change-me-to-something-random'
 socketio = SocketIO(app, async_mode='threading', cors_allowed_origins='*')
 
 voice_messages = []
@@ -36,8 +36,11 @@ def handle_voice(data):
         'audio': data['audio']
     }
     voice_messages.append(msg)
+    # Оставляем только последние 50 голосовых, чтобы не переполнять память
+    if len(voice_messages) > 50:
+        voice_messages.pop(0)
     emit('voice_message', msg, broadcast=True)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    socketio.run(app, host='0.0.0.0', port=port, debug=False)
+    socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
