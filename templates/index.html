@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мессенджер</title>
+</head>
+<body>
+    <h2>Мессенджер</h2>
+    <input type="text" id="username" placeholder="Ваше имя" value="Гость"><br><br>
+    <div id="messages" style="border:1px solid #ccc; height:300px; overflow-y:scroll; padding:5px;"></div><br>
+    <input type="text" id="text-input" placeholder="Сообщение" style="width:70%;">
+    <button onclick="sendText()">Отправить</button>
+    <button id="record-btn" onclick="toggleRecord()">🎤 Запись</button>
+    <br><span id="rec-status"></span>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+        const messages = document.getElementById('messages');
+        const textInput = document.getElementById('text-input');
+        const usernameInput = document.getElementById('username');
+        const recordBtn = document.getElementById('record-btn');
+        const recStatus = document.getElementById('rec-status');
+
+        let mediaRecorder, audioChunks = [], recording = false;
+
+        function addMsg(html) {
+            messages.innerHTML += html + '<br>';
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function sendText() {
+            const text = textInput.value.trim();
+            if (!text) return;
+            socket.emit('text_message', {
+                username: usernameInput.value || 'Аноним',
+                text: text
+            });
+            textInput.value = '';
+        }
+
+        textInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendText(); });
+
+        async function toggleRecord() {
+            if (!recording) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                    mediaRecorder.onstop = () => {
+                        const blob = new Blob(audioChunks, {type: 'audio/webm'});
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            const base64 = reader.result.split(',')[1];
+                            socket.emit('voice_message', {
+                                username: usernameInput.value || 'Аноним',
+                                audio: base64
+                            });
+                        };
+                        reader.readAsDataURL(blob);
+                        stream.getTracks().forEach(t => t.stop());
+                    };
+                    mediaRecorder.start();
+                    recording = true;
+                    recordBtn.textContent = '⏹ Стоп';
+                    recStatus.textContent = '🔴 Запись...';
+                } catch (err) {
+                    alert('Нет доступа к микрофону: ' + err.message);
+                }
+            } else {
+                mediaRecorder.stop();
+                recording = false;
+                recordBtn.textContent = '🎤 Запись';
+                recStatus.textContent = '';
+            }
+        }
+
+        socket.on('text_message', data => addMsg(`<b>${data.username}:</b> ${data.text}`));
+        socket.on('voice_message', data => {
+            addMsg(`<b>${data.username}:</b> голосовое сообщение <br>
+                    <audio controls src="data:audio/webm;base64,${data.audio}"></audio>`);
+        });
+        socket.on('user_joined', data => addMsg(`<i>${data.msg}</i>`));
+        socket.on('user_left', data => addMsg(`<i>${data.msg}</i>`));
+    </script>
+</body>
+</html>
