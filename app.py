@@ -77,12 +77,20 @@ def handle_file(data):
     if len(file_messages) > 10: file_messages.pop(0)
     emit('file_message', msg, broadcast=True)
 
-# Новое событие: индикатор печати
 @socketio.on('typing')
 def handle_typing(data):
     emit('typing', {
         'username': data.get('username', 'Аноним'),
         'typing': data.get('typing', False)
+    }, broadcast=True, include_self=False)
+
+# Новые события для индикаторов действий
+@socketio.on('action_status')
+def handle_action_status(data):
+    """Переслать всем статус действия пользователя (запись, отправка фото/файла)"""
+    emit('action_status', {
+        'username': data.get('username', 'Аноним'),
+        'action': data.get('action', '')  # 'recording', 'sending_photo', 'sending_file', ''
     }, broadcast=True, include_self=False)
 
 if __name__ == '__main__':
