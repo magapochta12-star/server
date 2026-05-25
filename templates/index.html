@@ -442,7 +442,7 @@
             });
         });
 
-        // ---------- Звонки WebRTC (исправлено) ----------
+        // ---------- Звонки WebRTC (исправлено воспроизведение) ----------
         async function getMediaSafe() {
             try {
                 return await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
@@ -500,8 +500,9 @@
                 console.log('Локальный поток получен, дорожки:', localStream.getTracks());
 
                 peerConnection = new RTCPeerConnection(pcConfig);
+                // Гарантируем, что удаленное видео не заглушено
+                remoteVideo.muted = false;
 
-                // Добавляем локальные дорожки ДО создания предложения
                 localStream.getTracks().forEach(track => {
                     console.log('Добавляем локальную дорожку:', track.kind);
                     peerConnection.addTrack(track, localStream);
@@ -518,16 +519,15 @@
                 };
 
                 peerConnection.ontrack = (event) => {
-                    console.log('Получен удалённый трек:', event.track.kind, event.streams);
+                    console.log('Получен удалённый трек:', event.track.kind);
                     if (event.streams[0]) {
                         remoteVideo.srcObject = event.streams[0];
-                        remoteVideo.muted = false;
-                        remoteVideo.play().catch(e => console.warn('Ошибка воспроизведения удалённого видео:', e));
+                        // автовоспроизведение сработает само, play() не вызываем
                     }
                 };
 
                 const offer = await peerConnection.createOffer();
-                console.log('Создан offer, устанавливаем локальное описание');
+                console.log('Создан offer');
                 await peerConnection.setLocalDescription(offer);
                 socket.emit('call_user', {
                     to_username: toUsername,
@@ -572,8 +572,8 @@
                     console.log('Локальный поток получен, дорожки:', localStream.getTracks());
 
                     peerConnection = new RTCPeerConnection(pcConfig);
+                    remoteVideo.muted = false;
 
-                    // Добавляем дорожки до применения удалённого описания
                     localStream.getTracks().forEach(track => {
                         console.log('Добавляем локальную дорожку (приём):', track.kind);
                         peerConnection.addTrack(track, localStream);
@@ -590,11 +590,9 @@
                     };
 
                     peerConnection.ontrack = (event) => {
-                        console.log('Получен удалённый трек (приём):', event.track.kind, event.streams);
+                        console.log('Получен удалённый трек (приём):', event.track.kind);
                         if (event.streams[0]) {
                             remoteVideo.srcObject = event.streams[0];
-                            remoteVideo.muted = false;
-                            remoteVideo.play().catch(e => console.warn('Ошибка воспроизведения удалённого видео:', e));
                         }
                     };
 
