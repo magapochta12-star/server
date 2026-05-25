@@ -10,8 +10,8 @@
         .msg { margin: 5px 0; }
         .username { font-weight: bold; color: #2c3e50; }
         .system { color: #666; font-style: italic; }
-        #input-area { display: flex; gap: 5px; margin-bottom: 10px; }
-        #text-input { flex: 1; padding: 8px; }
+        #input-area { display: flex; gap: 5px; margin-bottom: 10px; flex-wrap: wrap; }
+        #text-input { flex: 1; min-width: 150px; padding: 8px; }
         button { padding: 8px 12px; background: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; }
         #record-btn { background: #e74c3c; }
         #record-btn.recording { background: #c0392b; animation: pulse 1s infinite; }
@@ -19,6 +19,7 @@
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         audio, img { display: block; margin-top: 5px; max-width: 100%; }
         img { max-height: 300px; border-radius: 5px; }
+        #status-msg { font-size: 0.9em; color: #555; margin-left: 5px; }
     </style>
 </head>
 <body>
@@ -33,6 +34,7 @@
         <button id="record-btn" onclick="toggleRecord()">🎤 Запись</button>
         <button id="image-btn" onclick="selectImage()">📷 Фото</button>
         <input type="file" id="image-input" accept="image/*" style="display:none;" onchange="sendImage(this)">
+        <span id="status-msg"></span>
     </div>
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
@@ -44,11 +46,13 @@
         const recordBtn = document.getElementById('record-btn');
         const imageBtn = document.getElementById('image-btn');
         const imageInput = document.getElementById('image-input');
+        const statusMsg = document.getElementById('status-msg');
 
         let mediaRecorder;
         let audioChunks = [];
         let isRecording = false;
 
+        // ----- Вспомогательные функции для сообщений -----
         function addSystemMessage(text) {
             const div = document.createElement('div');
             div.className = 'msg system';
@@ -95,6 +99,7 @@
             return div.innerHTML;
         }
 
+        // ----- Текстовые сообщения -----
         function sendText() {
             const text = textInput.value.trim();
             if (!text) return;
@@ -109,6 +114,7 @@
             if (e.key === 'Enter') sendText();
         });
 
+        // ----- Голосовые сообщения -----
         async function toggleRecord() {
             if (!isRecording) {
                 try {
@@ -117,9 +123,7 @@
                     audioChunks = [];
 
                     mediaRecorder.ondataavailable = event => {
-                        if (event.data.size > 0) {
-                            audioChunks.push(event.data);
-                        }
+                        if (event.data.size > 0) audioChunks.push(event.data);
                     };
 
                     mediaRecorder.onstop = () => {
@@ -153,47 +157,116 @@
             }
         }
 
+        // ----- Фото с сжатием -----
+        const MAX_ORIGINAL_MB = 30;        // разрешённый исходный размер
+        const MAX_FINAL_BASE64_MB = 5;     // целевой размер после сжатия (в МБ для base64)
+        const TARGET_IMAGE_PX = 1600;      // максимальная сторона после сжатия
+
         function selectImage() {
             imageInput.click();
         }
 
         function sendImage(input) {
-            console.log('sendImage вызвана, файлов выбрано:', input.files.length);
             const file = input.files[0];
-            if (!file) {
-                console.log('Файл не выбран');
-                return;
-            }
-            console.log('Файл:', file.name, 'размер:', file.size, 'тип:', file.type);
+            if (!file) return;
 
-            if (file.size > 5 * 1024 * 1024) {
-                alert('Файл слишком большой. Максимальный размер 5 МБ.');
+            // Проверка на максимальный исходный размер
+            if (file.size > MAX_ORIGINAL_MB * 1024 * 1024) {
+                alert(`Файл слишком большой. Максимальный размер: ${MAX_ORIGINAL_MB} МБ.`);
                 imageInput.value = '';
                 return;
             }
 
+            statusMsg.textContent = 'Обработка фото...';
+
+            // Если файл уже ≤ 5 МБ, отправляем без сжатия
+            if (file.size <= MAX_FINAL_BASE64_MB * 1024 * 1024) {
+                readAndSend(file);
+                return;
+            }
+
+            // Иначе сжимаем
+            compressImage(file, (compressedFile) => {
+                readAndSend(compressedFile);
+            });
+        }
+
+        function readAndSend(file) {
             const reader = new FileReader();
             reader.onload = () => {
-                console.log('Файл прочитан, длина base64:', reader.result.length);
                 const base64 = reader.result.split(',')[1];
                 const mime = file.type || 'image/jpeg';
-                console.log('Отправляем image_message с mime:', mime);
                 socket.emit('image_message', {
                     username: usernameInput.value || 'Аноним',
                     image: base64,
                     mime: mime
                 });
                 imageInput.value = '';
-                console.log('Событие отправлено');
+                statusMsg.textContent = '';
             };
-            reader.onerror = (err) => {
-                console.error('Ошибка чтения файла:', err);
-                alert('Не удалось прочитать файл.');
+            reader.onerror = () => {
+                alert('Ошибка чтения файла.');
                 imageInput.value = '';
+                statusMsg.textContent = '';
             };
             reader.readAsDataURL(file);
         }
 
+        function compressImage(file, callback) {
+            const img = new Image();
+            const url = URL.createObjectURL(file);
+            img.onload = () => {
+                URL.revokeObjectURL(url);
+
+                // Определяем новые размеры
+                let { width, height } = img;
+                const maxDim = TARGET_IMAGE_PX;
+                if (width > maxDim || height > maxDim) {
+                    if (width > height) {
+                        height = (height / width) * maxDim;
+                        width = maxDim;
+                    } else {
+                        width = (width / height) * maxDim;
+                        height = maxDim;
+                    }
+                }
+
+                // Пытаемся подобрать качество, чтобы итоговый файл был меньше лимита
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                const tryQuality = (quality) => {
+                    canvas.toBlob((blob) => {
+                        if (!blob) {
+                            // Если не получилось, отправляем что есть
+                            canvas.toBlob((fallback) => callback(fallback), 'image/jpeg', 0.5);
+                            return;
+                        }
+                        // Пересчитываем размер base64 (примерно blob.size * 4/3)
+                        const estimatedBase64MB = (blob.size * 1.37) / (1024 * 1024); 
+                        if (estimatedBase64MB <= MAX_FINAL_BASE64_MB || quality <= 0.3) {
+                            callback(blob);
+                        } else {
+                            // Уменьшаем качество на 0.15
+                            tryQuality(Math.max(0.3, quality - 0.15));
+                        }
+                    }, 'image/jpeg', quality);
+                };
+
+                tryQuality(0.7); // начальное качество
+            };
+            img.onerror = () => {
+                alert('Не удалось загрузить изображение для сжатия.');
+                imageInput.value = '';
+                statusMsg.textContent = '';
+            };
+            img.src = url;
+        }
+
+        // ----- Обработчики сокета -----
         socket.on('connect', () => addSystemMessage('✅ Вы подключены'));
         socket.on('user_joined', (data) => addSystemMessage(data.msg));
         socket.on('user_left', (data) => addSystemMessage(data.msg));
