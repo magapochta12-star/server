@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request
-from flask_socketio import SocketIO, emit, join_room, leave_room
+from flask_socketio import SocketIO, emit
 import os
 
 app = Flask(__name__)
@@ -53,7 +53,8 @@ def handle_text(data):
 def handle_voice(data):
     msg = {'username': data.get('username', 'Аноним'), 'audio': data['audio']}
     voice_messages.append(msg)
-    if len(voice_messages) > 50: voice_messages.pop(0)
+    if len(voice_messages) > 50:
+        voice_messages.pop(0)
     emit('voice_message', msg, broadcast=True)
 
 @socketio.on('image_message')
@@ -64,7 +65,8 @@ def handle_image(data):
         'mime': data.get('mime', 'image/jpeg')
     }
     image_messages.append(msg)
-    if len(image_messages) > 20: image_messages.pop(0)
+    if len(image_messages) > 20:
+        image_messages.pop(0)
     emit('image_message', msg, broadcast=True)
 
 @socketio.on('file_message')
@@ -77,7 +79,8 @@ def handle_file(data):
         'size': data.get('size', 0)
     }
     file_messages.append(msg)
-    if len(file_messages) > 10: file_messages.pop(0)
+    if len(file_messages) > 10:
+        file_messages.pop(0)
     emit('file_message', msg, broadcast=True)
 
 # ------------------ Звонки (WebRTC сигналинг) ------------------
