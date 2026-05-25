@@ -9,6 +9,7 @@ socketio = SocketIO(app, async_mode='threading', cors_allowed_origins='*')
 voice_messages = []
 image_messages = []
 file_messages = []
+text_messages = []        # ← теперь храним и текстовые
 
 connected_users = {}
 
@@ -19,12 +20,15 @@ def index():
 @socketio.on('connect')
 def handle_connect():
     emit('user_joined', {'msg': 'Кто-то присоединился'}, broadcast=True)
+    # отправляем историю всех типов
     for vm in voice_messages[-10:]:
         emit('voice_message', vm)
     for im in image_messages[-10:]:
         emit('image_message', im)
     for fm in file_messages[-10:]:
         emit('file_message', fm)
+    if text_messages:
+        emit('text_history', text_messages[-50:])   # массив текстовых сообщений
 
 @socketio.on('register')
 def handle_register(data):
@@ -41,16 +45,18 @@ def handle_disconnect():
 
 @socketio.on('text_message')
 def handle_text(data):
-    emit('text_message', {
-        'username': data.get('username', 'Аноним'),
-        'text': data['text']
-    }, broadcast=True)
+    msg = {'username': data.get('username', 'Аноним'), 'text': data['text']}
+    text_messages.append(msg)
+    if len(text_messages) > 50:
+        text_messages.pop(0)
+    emit('text_message', msg, broadcast=True)
 
 @socketio.on('voice_message')
 def handle_voice(data):
     msg = {'username': data.get('username', 'Аноним'), 'audio': data['audio']}
     voice_messages.append(msg)
-    if len(voice_messages) > 50: voice_messages.pop(0)
+    if len(voice_messages) > 50:
+        voice_messages.pop(0)
     emit('voice_message', msg, broadcast=True)
 
 @socketio.on('image_message')
@@ -61,7 +67,8 @@ def handle_image(data):
         'mime': data.get('mime', 'image/jpeg')
     }
     image_messages.append(msg)
-    if len(image_messages) > 20: image_messages.pop(0)
+    if len(image_messages) > 20:
+        image_messages.pop(0)
     emit('image_message', msg, broadcast=True)
 
 @socketio.on('file_message')
@@ -74,7 +81,8 @@ def handle_file(data):
         'size': data.get('size', 0)
     }
     file_messages.append(msg)
-    if len(file_messages) > 10: file_messages.pop(0)
+    if len(file_messages) > 10:
+        file_messages.pop(0)
     emit('file_message', msg, broadcast=True)
 
 @socketio.on('typing')
@@ -84,13 +92,11 @@ def handle_typing(data):
         'typing': data.get('typing', False)
     }, broadcast=True, include_self=False)
 
-# Новые события для индикаторов действий
 @socketio.on('action_status')
 def handle_action_status(data):
-    """Переслать всем статус действия пользователя (запись, отправка фото/файла)"""
     emit('action_status', {
         'username': data.get('username', 'Аноним'),
-        'action': data.get('action', '')  # 'recording', 'sending_photo', 'sending_file', ''
+        'action': data.get('action', '')
     }, broadcast=True, include_self=False)
 
 if __name__ == '__main__':
