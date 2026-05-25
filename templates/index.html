@@ -155,7 +155,7 @@
         const pcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
         let currentRemoteUser = null;
         let callTimer = null;
-        let remoteStream = null;  // сохраняем для кнопки запуска
+        let remoteStream = null;
 
         // ---------- Уведомления ----------
         function showToast(username, type, preview) {
@@ -446,7 +446,7 @@
             });
         });
 
-        // ---------- Звонки (новая логика запуска медиа) ----------
+        // ---------- Звонки (новая надёжная логика) ----------
         async function getMediaSafe() {
             try {
                 return await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
@@ -464,12 +464,15 @@
         function showCallPanel() {
             callPanel.classList.add('active');
             callPanel.style.display = 'flex';
+            // Сбрасываем кнопку запуска медиа
+            startMediaBtn.style.display = 'none';
+            remoteVideo.srcObject = null;
+            remoteStream = null;
         }
 
         function hideCallPanel() {
             callPanel.classList.remove('active');
             callPanel.style.display = 'none';
-            startMediaBtn.style.display = 'none';
         }
 
         function closeCall() {
@@ -492,41 +495,19 @@
             }
         }
 
-        // Звуковой сигнал
-        function playRingtone() {
-            try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioCtx.createOscillator();
-                const gainNode = audioCtx.createGain();
-                oscillator.connect(gainNode);
-                gainNode.connect(audioCtx.destination);
-                oscillator.frequency.value = 800;
-                oscillator.type = 'sine';
-                gainNode.gain.value = 0.5;
-                oscillator.start();
-                setTimeout(() => {
-                    oscillator.stop();
-                    audioCtx.close();
-                }, 200);
-            } catch (e) {}
-        }
-
-        // Кнопка запуска видео и звука
+        // Кнопка запуска видео и звука (единоразово)
         startMediaBtn.onclick = () => {
             if (remoteStream) {
-                // Убираем mute и запускаем воспроизведение (жест пользователя)
+                remoteVideo.srcObject = remoteStream;
                 remoteVideo.muted = false;
                 remoteVideo.play().then(() => {
-                    console.log('Видео и звук запущены');
+                    console.log('Видео/аудио запущены');
                     startMediaBtn.style.display = 'none';
                 }).catch(e => {
-                    console.warn('Ошибка запуска медиа:', e);
-                    // Возможно, все равно работает, пробуем скрыть
+                    console.error('Ошибка запуска медиа:', e);
+                    // Даже если ошибка, скрываем кнопку, чтобы не зацикливаться
                     startMediaBtn.style.display = 'none';
                 });
-            } else {
-                // Если поток еще не пришел, просто скроем кнопку
-                startMediaBtn.style.display = 'none';
             }
         };
 
@@ -537,14 +518,11 @@
             acceptBtn.style.display = 'none';
             rejectBtn.style.display = 'none';
             hangupBtn.style.display = 'inline-block';
-            startMediaBtn.style.display = 'none';
-            remoteVideo.srcObject = null;
-            remoteStream = null;
 
             try {
                 localStream = await getMediaSafe();
                 localVideo.srcObject = localStream;
-                console.log('Локальный поток получен, дорожки:', localStream.getTracks());
+                console.log('Локальный поток получен');
 
                 peerConnection = new RTCPeerConnection(pcConfig);
                 localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
@@ -555,13 +533,11 @@
                     }
                 };
 
+                // Только сохраняем поток, не назначаем srcObject
                 peerConnection.ontrack = (event) => {
                     console.log('Получен удалённый трек:', event.track.kind);
                     if (event.streams[0]) {
                         remoteStream = event.streams[0];
-                        remoteVideo.srcObject = remoteStream;
-                        // Показываем кнопку запуска
-                        startMediaBtn.style.display = 'inline-block';
                     }
                 };
 
@@ -575,7 +551,7 @@
                         closeCall();
                         socket.emit('hang_up', { to_username: currentRemoteUser });
                     }
-                }, 120000);  // 2 минуты
+                }, 120000);
 
             } catch (err) {
                 console.error('Ошибка:', err);
@@ -592,16 +568,8 @@
             acceptBtn.style.display = 'inline-block';
             rejectBtn.style.display = 'inline-block';
             hangupBtn.style.display = 'none';
-            startMediaBtn.style.display = 'none';
-            remoteVideo.srcObject = null;
-            remoteStream = null;
-
-            // Звук
-            playRingtone();
-            const ringInterval = setInterval(playRingtone, 2500);
 
             acceptBtn.onclick = async () => {
-                clearInterval(ringInterval);
                 if (callTimer) clearTimeout(callTimer);
                 acceptBtn.style.display = 'none';
                 rejectBtn.style.display = 'none';
@@ -619,12 +587,11 @@
                             socket.emit('ice_candidate', { to_username: currentRemoteUser, candidate: event.candidate });
                         }
                     };
+                    // Сохраняем поток, не назначаем
                     peerConnection.ontrack = (event) => {
                         console.log('Получен удалённый трек (приём):', event.track.kind);
                         if (event.streams[0]) {
                             remoteStream = event.streams[0];
-                            remoteVideo.srcObject = remoteStream;
-                            startMediaBtn.style.display = 'inline-block';
                         }
                     };
 
@@ -633,6 +600,8 @@
                     await peerConnection.setLocalDescription(answer);
                     socket.emit('call_accepted', { to_username: currentRemoteUser, signal: answer });
                     callStatus.textContent = 'Разговор...';
+                    // Показываем кнопку запуска медиа
+                    startMediaBtn.style.display = 'inline-block';
                 } catch (err) {
                     console.error('Ошибка:', err);
                     alert('Ошибка: ' + err.message);
@@ -642,15 +611,12 @@
             };
 
             rejectBtn.onclick = () => {
-                clearInterval(ringInterval);
                 if (callTimer) clearTimeout(callTimer);
                 socket.emit('call_rejected', { to_username: currentRemoteUser });
                 closeCall();
             };
 
-            // Таймаут на входящий звонок
             callTimer = setTimeout(() => {
-                clearInterval(ringInterval);
                 if (currentRemoteUser) {
                     alert('Входящий звонок пропущен.');
                     closeCall();
@@ -664,6 +630,8 @@
             try {
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
                 callStatus.textContent = 'Разговор...';
+                // Показываем кнопку запуска медиа
+                startMediaBtn.style.display = 'inline-block';
             } catch (e) {
                 console.error('Ошибка:', e);
             }
