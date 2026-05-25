@@ -34,7 +34,7 @@
             display: none;
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.85);
+            background: rgba(0,0,0,0.9);
             z-index: 10000;
             flex-direction: column;
             align-items: center;
@@ -44,9 +44,10 @@
         #call-panel.active { display: flex; }
         #call-status {
             color: white;
-            font-size: 18px;
-            margin-bottom: 10px;
+            font-size: 20px;
+            margin-bottom: 15px;
             text-align: center;
+            font-weight: bold;
         }
         .video-container {
             display: flex;
@@ -58,31 +59,32 @@
         }
         .video-container video {
             width: 45%;
-            min-width: 140px;
+            min-width: 120px;
             max-width: 250px;
             background: #000;
-            border-radius: 8px;
+            border-radius: 10px;
             border: 2px solid white;
         }
         .call-buttons {
-            margin-top: 15px;
+            margin-top: 20px;
             display: flex;
             gap: 15px;
             flex-wrap: wrap;
             justify-content: center;
         }
         .call-buttons button {
-            font-size: 16px;
-            padding: 12px 20px;
+            font-size: 18px;
+            padding: 14px 28px;
             border-radius: 30px;
-            min-width: 100px;
+            min-width: 120px;
+            font-weight: bold;
         }
         #hangup-btn { background: #e74c3c; }
         #unmute-btn { background: #f1c40f; color: black; display: none; }
 
         @media (max-width: 400px) {
-            .video-container video { width: 90%; min-width: 0; }
-            .call-buttons button { font-size: 14px; padding: 10px 15px; }
+            .video-container video { width: 80%; min-width: 0; max-width: 200px; }
+            .call-buttons button { font-size: 16px; padding: 12px 22px; }
         }
 
         #user-list { margin: 10px 0; }
@@ -309,7 +311,7 @@
             }
         }
 
-        // ---------- Фото (сжатие) ----------
+        // ---------- Фото и файлы (без изменений) ----------
         const MAX_ORIGINAL_MB = 30;
         const MAX_FINAL_BASE64_MB = 5;
         const TARGET_IMAGE_PX = 1600;
@@ -351,14 +353,13 @@
             img.onload = () => {
                 URL.revokeObjectURL(url);
                 let { width, height } = img;
-                const maxDim = TARGET_IMAGE_PX;
-                if (width > maxDim || height > maxDim) {
+                if (width > TARGET_IMAGE_PX || height > TARGET_IMAGE_PX) {
                     if (width > height) {
-                        height = (height / width) * maxDim;
-                        width = maxDim;
+                        height = (height / width) * TARGET_IMAGE_PX;
+                        width = TARGET_IMAGE_PX;
                     } else {
-                        width = (width / height) * maxDim;
-                        height = maxDim;
+                        width = (width / height) * TARGET_IMAGE_PX;
+                        height = TARGET_IMAGE_PX;
                     }
                 }
                 const canvas = document.createElement('canvas');
@@ -390,7 +391,6 @@
             img.src = url;
         }
 
-        // ---------- Файлы ----------
         const MAX_FILE_MB = 10;
         function selectFile() { fileInput.click(); }
         function sendFile(input) {
@@ -445,7 +445,7 @@
             });
         });
 
-        // ---------- Звонки WebRTC (без принудительного play) ----------
+        // ---------- Звонки (стабильная версия) ----------
         async function getMediaSafe() {
             try {
                 return await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
@@ -490,11 +490,29 @@
             }
         }
 
+        // Звуковой сигнал
+        function playRingtone() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+                gainNode.gain.value = 0.5;
+                oscillator.start();
+                setTimeout(() => {
+                    oscillator.stop();
+                    audioCtx.close();
+                }, 200);
+            } catch (e) {}
+        }
+
         // Кнопка "Включить звук"
         unmuteBtn.onclick = () => {
             if (remoteVideo) {
                 remoteVideo.muted = false;
-                // Если видео не играет из-за политики, попробуем запустить
                 remoteVideo.play().catch(e => console.warn('Не удалось включить звук:', e));
             }
             unmuteBtn.style.display = 'none';
@@ -508,8 +526,6 @@
             rejectBtn.style.display = 'none';
             hangupBtn.style.display = 'inline-block';
             unmuteBtn.style.display = 'none';
-
-            // Гарантируем muted для автовоспроизведения
             remoteVideo.muted = true;
 
             try {
@@ -518,19 +534,11 @@
                 console.log('Локальный поток получен, дорожки:', localStream.getTracks());
 
                 peerConnection = new RTCPeerConnection(pcConfig);
-
-                localStream.getTracks().forEach(track => {
-                    console.log('Добавляем локальную дорожку:', track.kind);
-                    peerConnection.addTrack(track, localStream);
-                });
+                localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
                 peerConnection.onicecandidate = (event) => {
                     if (event.candidate) {
-                        console.log('Отправляем ICE кандидат');
-                        socket.emit('ice_candidate', {
-                            to_username: toUsername,
-                            candidate: event.candidate
-                        });
+                        socket.emit('ice_candidate', { to_username: toUsername, candidate: event.candidate });
                     }
                 };
 
@@ -538,20 +546,13 @@
                     console.log('Получен удалённый трек:', event.track.kind);
                     if (event.streams[0]) {
                         remoteVideo.srcObject = event.streams[0];
-                        // Не вызываем play(), autoplay справится
-                        // Показываем кнопку разблокировки звука
                         unmuteBtn.style.display = 'inline-block';
                     }
                 };
 
                 const offer = await peerConnection.createOffer();
-                console.log('Создан offer');
                 await peerConnection.setLocalDescription(offer);
-                socket.emit('call_user', {
-                    to_username: toUsername,
-                    from_username: localUsername,
-                    signal: offer
-                });
+                socket.emit('call_user', { to_username: toUsername, from_username: localUsername, signal: offer });
 
                 callTimer = setTimeout(() => {
                     if (currentRemoteUser) {
@@ -559,10 +560,10 @@
                         closeCall();
                         socket.emit('hang_up', { to_username: currentRemoteUser });
                     }
-                }, 60000);
+                }, 120000);  // 2 минуты
 
             } catch (err) {
-                console.error('Ошибка при начале звонка:', err);
+                console.error('Ошибка:', err);
                 alert('Ошибка: ' + err.message);
                 closeCall();
             }
@@ -579,35 +580,29 @@
             unmuteBtn.style.display = 'none';
             remoteVideo.muted = true;
 
+            // Звук
+            playRingtone();
+            const ringInterval = setInterval(playRingtone, 2500);
+
             acceptBtn.onclick = async () => {
-                console.log('Принимаем звонок');
-                callStatus.textContent = 'Соединение...';
+                clearInterval(ringInterval);
+                if (callTimer) clearTimeout(callTimer);
                 acceptBtn.style.display = 'none';
                 rejectBtn.style.display = 'none';
                 hangupBtn.style.display = 'inline-block';
+                callStatus.textContent = 'Соединение...';
 
                 try {
                     localStream = await getMediaSafe();
                     localVideo.srcObject = localStream;
-                    console.log('Локальный поток получен, дорожки:', localStream.getTracks());
-
                     peerConnection = new RTCPeerConnection(pcConfig);
-
-                    localStream.getTracks().forEach(track => {
-                        console.log('Добавляем локальную дорожку (приём):', track.kind);
-                        peerConnection.addTrack(track, localStream);
-                    });
+                    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
                     peerConnection.onicecandidate = (event) => {
                         if (event.candidate) {
-                            console.log('Отправляем ICE кандидат (приём)');
-                            socket.emit('ice_candidate', {
-                                to_username: currentRemoteUser,
-                                candidate: event.candidate
-                            });
+                            socket.emit('ice_candidate', { to_username: currentRemoteUser, candidate: event.candidate });
                         }
                     };
-
                     peerConnection.ontrack = (event) => {
                         console.log('Получен удалённый трек (приём):', event.track.kind);
                         if (event.streams[0]) {
@@ -616,20 +611,13 @@
                         }
                     };
 
-                    console.log('Устанавливаем удалённое описание (предложение)');
                     await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
-                    console.log('Создаём ответ');
                     const answer = await peerConnection.createAnswer();
-                    console.log('Устанавливаем локальное описание (ответ)');
                     await peerConnection.setLocalDescription(answer);
-                    socket.emit('call_accepted', {
-                        to_username: currentRemoteUser,
-                        signal: answer
-                    });
+                    socket.emit('call_accepted', { to_username: currentRemoteUser, signal: answer });
                     callStatus.textContent = 'Разговор...';
-
                 } catch (err) {
-                    console.error('Ошибка при принятии звонка:', err);
+                    console.error('Ошибка:', err);
                     alert('Ошибка: ' + err.message);
                     closeCall();
                     socket.emit('hang_up', { to_username: currentRemoteUser });
@@ -637,26 +625,30 @@
             };
 
             rejectBtn.onclick = () => {
+                clearInterval(ringInterval);
+                if (callTimer) clearTimeout(callTimer);
                 socket.emit('call_rejected', { to_username: currentRemoteUser });
                 closeCall();
             };
 
+            // Таймаут на входящий звонок
             callTimer = setTimeout(() => {
+                clearInterval(ringInterval);
                 if (currentRemoteUser) {
                     alert('Входящий звонок пропущен.');
                     closeCall();
                 }
-            }, 60000);
+            }, 120000);
         });
 
         socket.on('call_accepted', async (data) => {
-            console.log('Звонок принят, устанавливаем удалённое описание (ответ)');
+            console.log('Звонок принят');
             if (callTimer) clearTimeout(callTimer);
             try {
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
                 callStatus.textContent = 'Разговор...';
             } catch (e) {
-                console.error('Ошибка установки удалённого описания:', e);
+                console.error('Ошибка:', e);
             }
         });
 
@@ -673,10 +665,9 @@
         socket.on('ice_candidate', async (data) => {
             if (peerConnection) {
                 try {
-                    console.log('Получен ICE кандидат, добавляем');
                     await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
                 } catch (e) {
-                    console.warn('Ошибка добавления ICE кандидата:', e);
+                    console.warn('ICE candidate error:', e);
                 }
             }
         });
