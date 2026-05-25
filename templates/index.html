@@ -80,7 +80,7 @@
             font-weight: bold;
         }
         #hangup-btn { background: #e74c3c; }
-        #start-media-btn { background: #2ecc71; color: white; display: none; }
+        #unmute-btn { background: #f1c40f; color: black; display: none; }
 
         @media (max-width: 400px) {
             .video-container video { width: 80%; min-width: 0; max-width: 200px; }
@@ -116,12 +116,12 @@
         <div id="call-status"></div>
         <div class="video-container">
             <video id="localVideo" autoplay muted playsinline></video>
-            <video id="remoteVideo" playsinline></video>
+            <video id="remoteVideo" autoplay muted playsinline></video>
         </div>
         <div class="call-buttons">
             <button id="accept-btn" style="display:none; background: green;">Принять</button>
             <button id="reject-btn" style="display:none; background: red;">Отклонить</button>
-            <button id="start-media-btn">▶️ Смотреть и слушать</button>
+            <button id="unmute-btn">🔊 Включить звук</button>
             <button id="hangup-btn" style="display:none;">Завершить</button>
         </div>
     </div>
@@ -147,7 +147,7 @@
         const acceptBtn = document.getElementById('accept-btn');
         const rejectBtn = document.getElementById('reject-btn');
         const hangupBtn = document.getElementById('hangup-btn');
-        const startMediaBtn = document.getElementById('start-media-btn');
+        const unmuteBtn = document.getElementById('unmute-btn');
 
         let mediaRecorder, audioChunks = [], isRecording = false, notificationsEnabled = false;
         let localUsername = 'Гость';
@@ -155,7 +155,6 @@
         const pcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
         let currentRemoteUser = null;
         let callTimer = null;
-        let remoteStream = null;
 
         // ---------- Уведомления ----------
         function showToast(username, type, preview) {
@@ -446,7 +445,7 @@
             });
         });
 
-        // ---------- Звонки (новая надёжная логика) ----------
+        // ---------- Звонки (autoplay muted + кнопка unmute) ----------
         async function getMediaSafe() {
             try {
                 return await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
@@ -464,10 +463,8 @@
         function showCallPanel() {
             callPanel.classList.add('active');
             callPanel.style.display = 'flex';
-            // Сбрасываем кнопку запуска медиа
-            startMediaBtn.style.display = 'none';
+            unmuteBtn.style.display = 'none';
             remoteVideo.srcObject = null;
-            remoteStream = null;
         }
 
         function hideCallPanel() {
@@ -486,7 +483,6 @@
             }
             localVideo.srcObject = null;
             remoteVideo.srcObject = null;
-            remoteStream = null;
             hideCallPanel();
             currentRemoteUser = null;
             if (callTimer) {
@@ -495,20 +491,10 @@
             }
         }
 
-        // Кнопка запуска видео и звука (единоразово)
-        startMediaBtn.onclick = () => {
-            if (remoteStream) {
-                remoteVideo.srcObject = remoteStream;
-                remoteVideo.muted = false;
-                remoteVideo.play().then(() => {
-                    console.log('Видео/аудио запущены');
-                    startMediaBtn.style.display = 'none';
-                }).catch(e => {
-                    console.error('Ошибка запуска медиа:', e);
-                    // Даже если ошибка, скрываем кнопку, чтобы не зацикливаться
-                    startMediaBtn.style.display = 'none';
-                });
-            }
+        // Кнопка включения звука
+        unmuteBtn.onclick = () => {
+            remoteVideo.muted = false;
+            unmuteBtn.style.display = 'none';
         };
 
         async function initiateCall(toUsername) {
@@ -518,6 +504,7 @@
             acceptBtn.style.display = 'none';
             rejectBtn.style.display = 'none';
             hangupBtn.style.display = 'inline-block';
+            remoteVideo.muted = true; // важно для автовоспроизведения
 
             try {
                 localStream = await getMediaSafe();
@@ -533,11 +520,12 @@
                     }
                 };
 
-                // Только сохраняем поток, не назначаем srcObject
                 peerConnection.ontrack = (event) => {
                     console.log('Получен удалённый трек:', event.track.kind);
                     if (event.streams[0]) {
-                        remoteStream = event.streams[0];
+                        remoteVideo.srcObject = event.streams[0];
+                        // Видео стартует автоматически (muted)
+                        unmuteBtn.style.display = 'inline-block';
                     }
                 };
 
@@ -568,6 +556,7 @@
             acceptBtn.style.display = 'inline-block';
             rejectBtn.style.display = 'inline-block';
             hangupBtn.style.display = 'none';
+            remoteVideo.muted = true;
 
             acceptBtn.onclick = async () => {
                 if (callTimer) clearTimeout(callTimer);
@@ -587,11 +576,11 @@
                             socket.emit('ice_candidate', { to_username: currentRemoteUser, candidate: event.candidate });
                         }
                     };
-                    // Сохраняем поток, не назначаем
                     peerConnection.ontrack = (event) => {
                         console.log('Получен удалённый трек (приём):', event.track.kind);
                         if (event.streams[0]) {
-                            remoteStream = event.streams[0];
+                            remoteVideo.srcObject = event.streams[0];
+                            unmuteBtn.style.display = 'inline-block';
                         }
                     };
 
@@ -600,8 +589,6 @@
                     await peerConnection.setLocalDescription(answer);
                     socket.emit('call_accepted', { to_username: currentRemoteUser, signal: answer });
                     callStatus.textContent = 'Разговор...';
-                    // Показываем кнопку запуска медиа
-                    startMediaBtn.style.display = 'inline-block';
                 } catch (err) {
                     console.error('Ошибка:', err);
                     alert('Ошибка: ' + err.message);
@@ -630,8 +617,6 @@
             try {
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
                 callStatus.textContent = 'Разговор...';
-                // Показываем кнопку запуска медиа
-                startMediaBtn.style.display = 'inline-block';
             } catch (e) {
                 console.error('Ошибка:', e);
             }
