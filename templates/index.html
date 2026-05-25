@@ -1,37 +1,205 @@
-function sendImage(input) {
-    console.log('sendImage вызвана, файлов выбрано:', input.files.length);
-    const file = input.files[0];
-    if (!file) {
-        console.log('Файл не выбран');
-        return;
-    }
-    console.log('Файл:', file.name, 'размер:', file.size, 'тип:', file.type);
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мессенджер</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 10px; }
+        #messages { border: 1px solid #ccc; height: 400px; overflow-y: scroll; padding: 10px; margin: 10px 0; }
+        .msg { margin: 5px 0; }
+        .username { font-weight: bold; color: #2c3e50; }
+        .system { color: #666; font-style: italic; }
+        #input-area { display: flex; gap: 5px; margin-bottom: 10px; }
+        #text-input { flex: 1; padding: 8px; }
+        button { padding: 8px 12px; background: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        #record-btn { background: #e74c3c; }
+        #record-btn.recording { background: #c0392b; animation: pulse 1s infinite; }
+        #image-btn { background: #27ae60; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        audio, img { display: block; margin-top: 5px; max-width: 100%; }
+        img { max-height: 300px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h2>PyMessenger</h2>
+    <div>
+        <input type="text" id="username" placeholder="Ваше имя" value="Гость">
+    </div>
+    <div id="messages"></div>
+    <div id="input-area">
+        <input type="text" id="text-input" placeholder="Введите сообщение...">
+        <button onclick="sendText()">Отправить</button>
+        <button id="record-btn" onclick="toggleRecord()">🎤 Запись</button>
+        <button id="image-btn" onclick="selectImage()">📷 Фото</button>
+        <input type="file" id="image-input" accept="image/*" style="display:none;" onchange="sendImage(this)">
+    </div>
 
-    // Ограничение размера 5 МБ
-    if (file.size > 5 * 1024 * 1024) {
-        alert('Файл слишком большой. Максимальный размер 5 МБ.');
-        imageInput.value = '';
-        return;
-    }
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+        const messagesDiv = document.getElementById('messages');
+        const textInput = document.getElementById('text-input');
+        const usernameInput = document.getElementById('username');
+        const recordBtn = document.getElementById('record-btn');
+        const imageBtn = document.getElementById('image-btn');
+        const imageInput = document.getElementById('image-input');
 
-    const reader = new FileReader();
-    reader.onload = () => {
-        console.log('Файл прочитан, длина base64:', reader.result.length);
-        const base64 = reader.result.split(',')[1];
-        const mime = file.type || 'image/jpeg';
-        console.log('Отправляем image_message с mime:', mime);
-        socket.emit('image_message', {
-            username: usernameInput.value || 'Аноним',
-            image: base64,
-            mime: mime
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+
+        function addSystemMessage(text) {
+            const div = document.createElement('div');
+            div.className = 'msg system';
+            div.textContent = text;
+            messagesDiv.appendChild(div);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function addTextMessage(username, text) {
+            const div = document.createElement('div');
+            div.className = 'msg';
+            div.innerHTML = `<span class="username">${escapeHtml(username)}:</span> ${escapeHtml(text)}`;
+            messagesDiv.appendChild(div);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function addVoiceMessage(username, audioBase64) {
+            const div = document.createElement('div');
+            div.className = 'msg';
+            div.innerHTML = `<span class="username">${escapeHtml(username)}:</span> голосовое сообщение<br>`;
+            const audio = document.createElement('audio');
+            audio.controls = true;
+            audio.src = "data:audio/webm;base64," + audioBase64;
+            div.appendChild(audio);
+            messagesDiv.appendChild(div);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function addImageMessage(username, imageBase64, mime) {
+            const div = document.createElement('div');
+            div.className = 'msg';
+            div.innerHTML = `<span class="username">${escapeHtml(username)}:</span> фото<br>`;
+            const img = document.createElement('img');
+            img.src = `data:${mime};base64,${imageBase64}`;
+            img.onload = () => { messagesDiv.scrollTop = messagesDiv.scrollHeight; };
+            div.appendChild(img);
+            messagesDiv.appendChild(div);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function sendText() {
+            const text = textInput.value.trim();
+            if (!text) return;
+            socket.emit('text_message', {
+                username: usernameInput.value || 'Аноним',
+                text: text
+            });
+            textInput.value = '';
+        }
+
+        textInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendText();
         });
-        imageInput.value = '';  // сброс
-        console.log('Событие отправлено');
-    };
-    reader.onerror = (err) => {
-        console.error('Ошибка чтения файла:', err);
-        alert('Не удалось прочитать файл.');
-        imageInput.value = '';
-    };
-    reader.readAsDataURL(file);
-}
+
+        async function toggleRecord() {
+            if (!isRecording) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+
+                    mediaRecorder.ondataavailable = event => {
+                        if (event.data.size > 0) {
+                            audioChunks.push(event.data);
+                        }
+                    };
+
+                    mediaRecorder.onstop = () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            const base64 = reader.result.split(',')[1];
+                            socket.emit('voice_message', {
+                                username: usernameInput.value || 'Аноним',
+                                audio: base64
+                            });
+                        };
+                        reader.readAsDataURL(audioBlob);
+                        stream.getTracks().forEach(track => track.stop());
+                    };
+
+                    mediaRecorder.start();
+                    isRecording = true;
+                    recordBtn.textContent = '⏹ Стоп';
+                    recordBtn.classList.add('recording');
+                } catch (err) {
+                    alert('Нет доступа к микрофону: ' + err.message);
+                }
+            } else {
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                    mediaRecorder.stop();
+                }
+                isRecording = false;
+                recordBtn.textContent = '🎤 Запись';
+                recordBtn.classList.remove('recording');
+            }
+        }
+
+        function selectImage() {
+            imageInput.click();
+        }
+
+        function sendImage(input) {
+            console.log('sendImage вызвана, файлов выбрано:', input.files.length);
+            const file = input.files[0];
+            if (!file) {
+                console.log('Файл не выбран');
+                return;
+            }
+            console.log('Файл:', file.name, 'размер:', file.size, 'тип:', file.type);
+
+            if (file.size > 5 * 1024 * 1024) {
+                alert('Файл слишком большой. Максимальный размер 5 МБ.');
+                imageInput.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = () => {
+                console.log('Файл прочитан, длина base64:', reader.result.length);
+                const base64 = reader.result.split(',')[1];
+                const mime = file.type || 'image/jpeg';
+                console.log('Отправляем image_message с mime:', mime);
+                socket.emit('image_message', {
+                    username: usernameInput.value || 'Аноним',
+                    image: base64,
+                    mime: mime
+                });
+                imageInput.value = '';
+                console.log('Событие отправлено');
+            };
+            reader.onerror = (err) => {
+                console.error('Ошибка чтения файла:', err);
+                alert('Не удалось прочитать файл.');
+                imageInput.value = '';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        socket.on('connect', () => addSystemMessage('✅ Вы подключены'));
+        socket.on('user_joined', (data) => addSystemMessage(data.msg));
+        socket.on('user_left', (data) => addSystemMessage(data.msg));
+        socket.on('text_message', (data) => addTextMessage(data.username, data.text));
+        socket.on('voice_message', (data) => addVoiceMessage(data.username, data.audio));
+        socket.on('image_message', (data) => addImageMessage(data.username, data.image, data.mime));
+    </script>
+</body>
+</html>
