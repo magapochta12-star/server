@@ -1,416 +1,143 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PyMessenger</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 10px; }
-        #messages { border: 1px solid #ccc; height: 400px; overflow-y: scroll; padding: 10px; margin: 10px 0; }
-        .msg { margin: 5px 0; }
-        .username { font-weight: bold; color: #2c3e50; }
-        .system { color: #666; font-style: italic; }
-        #input-area { display: flex; gap: 5px; margin-bottom: 10px; flex-wrap: wrap; }
-        #text-input { flex: 1; min-width: 150px; padding: 8px; }
-        button { padding: 8px 12px; background: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; }
-        #record-btn { background: #e74c3c; }
-        #record-btn.recording { background: #c0392b; animation: pulse 1s infinite; }
-        #image-btn { background: #27ae60; }
-        #file-btn { background: #f39c12; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-        audio, img { display: block; margin-top: 5px; max-width: 100%; }
-        img { max-height: 300px; border-radius: 5px; }
-        .file-link { display: inline-block; margin-top: 5px; padding: 5px 10px; background: #ecf0f1; border-radius: 4px; text-decoration: none; color: #2c3e50; }
-        #status-msg { font-size: 0.9em; color: #555; margin-left: 5px; }
+from flask import Flask, render_template, request
+from flask_socketio import SocketIO, emit, join_room, leave_room
+import os
 
-        /* Стили для всплывающего уведомления (тоста) */
-        #toast-container {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            z-index: 9999;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .toast {
-            background: #333;
-            color: #fff;
-            padding: 12px 16px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            min-width: 200px;
-            max-width: 300px;
-            font-size: 14px;
-            animation: slideIn 0.3s ease, fadeOut 0.5s 4.5s forwards;
-            word-break: break-word;
-        }
-        .toast .toast-username { font-weight: bold; color: #3498db; }
-        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-        @keyframes fadeOut { to { opacity: 0; transform: translateX(100%); } }
-    </style>
-</head>
-<body>
-    <h2>PyMessenger</h2>
-    <div>
-        <input type="text" id="username" placeholder="Ваше имя" value="Гость">
-        <button onclick="requestNotificationPermission()" style="font-size:12px; padding:4px 8px;">🔔 Уведомления</button>
-    </div>
-    <div id="messages"></div>
-    <div id="input-area">
-        <input type="text" id="text-input" placeholder="Введите сообщение...">
-        <button onclick="sendText()">Отправить</button>
-        <button id="record-btn" onclick="toggleRecord()">🎤 Запись</button>
-        <button id="image-btn" onclick="selectImage()">📷 Фото</button>
-        <button id="file-btn" onclick="selectFile()">📎 Файл</button>
-        <input type="file" id="image-input" accept="image/*" style="display:none;" onchange="sendImage(this)">
-        <input type="file" id="file-input" style="display:none;" onchange="sendFile(this)">
-        <span id="status-msg"></span>
-    </div>
-    <!-- Контейнер для тостов -->
-    <div id="toast-container"></div>
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'change-me-to-something-random'
+socketio = SocketIO(app, async_mode='threading', cors_allowed_origins='*')
 
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <script>
-        const socket = io();
-        const messagesDiv = document.getElementById('messages');
-        const textInput = document.getElementById('text-input');
-        const usernameInput = document.getElementById('username');
-        const recordBtn = document.getElementById('record-btn');
-        const imageBtn = document.getElementById('image-btn');
-        const fileBtn = document.getElementById('file-btn');
-        const imageInput = document.getElementById('image-input');
-        const fileInput = document.getElementById('file-input');
-        const statusMsg = document.getElementById('status-msg');
-        const toastContainer = document.getElementById('toast-container');
+# Хранилища сообщений
+voice_messages = []
+image_messages = []
+file_messages = []
 
-        let mediaRecorder;
-        let audioChunks = [];
-        let isRecording = false;
-        let notificationsEnabled = false;
+# Активные пользователи: sid -> username
+connected_users = {}
 
-        // ----- Функции уведомлений -----
-        function showToast(username, type, preview) {
-            const toast = document.createElement('div');
-            toast.className = 'toast';
-            toast.innerHTML = `<span class="toast-username">${escapeHtml(username)}</span> ${type}: ${escapeHtml(preview)}`;
-            toastContainer.appendChild(toast);
-            // Автоматически удалить после анимации (5s)
-            setTimeout(() => {
-                if (toast.parentNode) toast.remove();
-            }, 5000);
-        }
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-        function showSystemNotification(title, body) {
-            if (!notificationsEnabled || !('Notification' in window)) return;
-            if (Notification.permission === 'granted') {
-                try {
-                    new Notification(title, { body, icon: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=' }); // пустая иконка, можно заменить
-                } catch (e) { /* игнорируем ошибки */ }
-            }
-        }
+@socketio.on('connect')
+def handle_connect():
+    emit('user_joined', {'msg': 'Кто-то присоединился'}, broadcast=True)
+    # Отправляем историю новичку
+    for vm in voice_messages[-10:]:
+        emit('voice_message', vm)
+    for im in image_messages[-10:]:
+        emit('image_message', im)
+    for fm in file_messages[-10:]:
+        emit('file_message', fm)
 
-        function notifyIfHidden(username, messageType, preview) {
-            if (document.hidden) {
-                showToast(username, messageType, preview);
-                showSystemNotification(username + ': ' + messageType, preview);
-            }
-            // Также можно обновить заголовок вкладки
-            if (document.hidden) {
-                document.title = '🔔 Новое сообщение';
-                setTimeout(() => { if (!document.hidden) document.title = 'PyMessenger'; }, 2000);
-            }
-        }
+@socketio.on('register')
+def handle_register(data):
+    username = data.get('username', 'Аноним')
+    connected_users[request.sid] = username
+    emit('update_user_list', list(connected_users.values()), broadcast=True)
 
-        function requestNotificationPermission() {
-            if (!('Notification' in window)) {
-                alert('Ваш браузер не поддерживает уведомления.');
-                return;
-            }
-            Notification.requestPermission().then(permission => {
-                if (permission === 'granted') {
-                    notificationsEnabled = true;
-                    alert('Уведомления включены!');
-                } else {
-                    alert('Разрешение на уведомления не получено.');
-                }
-            });
-        }
+@socketio.on('disconnect')
+def handle_disconnect():
+    if request.sid in connected_users:
+        del connected_users[request.sid]
+    emit('user_left', {'msg': 'Кто-то вышел'}, broadcast=True)
+    emit('update_user_list', list(connected_users.values()), broadcast=True)
 
-        // При загрузке проверяем, есть ли уже разрешение
-        if ('Notification' in window && Notification.permission === 'granted') {
-            notificationsEnabled = true;
-        }
+@socketio.on('text_message')
+def handle_text(data):
+    emit('text_message', {
+        'username': data.get('username', 'Аноним'),
+        'text': data['text']
+    }, broadcast=True)
 
-        // ----- Вспомогательные функции для сообщений -----
-        function addSystemMessage(text) {
-            const div = document.createElement('div');
-            div.className = 'msg system';
-            div.textContent = text;
-            messagesDiv.appendChild(div);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
+@socketio.on('voice_message')
+def handle_voice(data):
+    msg = {'username': data.get('username', 'Аноним'), 'audio': data['audio']}
+    voice_messages.append(msg)
+    if len(voice_messages) > 50: voice_messages.pop(0)
+    emit('voice_message', msg, broadcast=True)
 
-        function addTextMessage(username, text) {
-            const div = document.createElement('div');
-            div.className = 'msg';
-            div.innerHTML = `<span class="username">${escapeHtml(username)}:</span> ${escapeHtml(text)}`;
-            messagesDiv.appendChild(div);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            notifyIfHidden(username, 'сообщение', text.substring(0, 100));
-        }
+@socketio.on('image_message')
+def handle_image(data):
+    msg = {
+        'username': data.get('username', 'Аноним'),
+        'image': data['image'],
+        'mime': data.get('mime', 'image/jpeg')
+    }
+    image_messages.append(msg)
+    if len(image_messages) > 20: image_messages.pop(0)
+    emit('image_message', msg, broadcast=True)
 
-        function addVoiceMessage(username, audioBase64) {
-            const div = document.createElement('div');
-            div.className = 'msg';
-            div.innerHTML = `<span class="username">${escapeHtml(username)}:</span> голосовое сообщение<br>`;
-            const audio = document.createElement('audio');
-            audio.controls = true;
-            audio.src = "data:audio/webm;base64," + audioBase64;
-            div.appendChild(audio);
-            messagesDiv.appendChild(div);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            notifyIfHidden(username, 'голосовое', '🎤');
-        }
+@socketio.on('file_message')
+def handle_file(data):
+    msg = {
+        'username': data.get('username', 'Аноним'),
+        'filename': data['filename'],
+        'file_data': data['file_data'],
+        'mime': data.get('mime', 'application/octet-stream'),
+        'size': data.get('size', 0)
+    }
+    file_messages.append(msg)
+    if len(file_messages) > 10: file_messages.pop(0)
+    emit('file_message', msg, broadcast=True)
 
-        function addImageMessage(username, imageBase64, mime) {
-            const div = document.createElement('div');
-            div.className = 'msg';
-            div.innerHTML = `<span class="username">${escapeHtml(username)}:</span> фото<br>`;
-            const img = document.createElement('img');
-            img.src = `data:${mime};base64,${imageBase64}`;
-            img.onload = () => { messagesDiv.scrollTop = messagesDiv.scrollHeight; };
-            div.appendChild(img);
-            messagesDiv.appendChild(div);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            notifyIfHidden(username, 'фото', '📷');
-        }
+# ------------------ Звонки (WebRTC сигналинг) ------------------
+@socketio.on('call_user')
+def handle_call(data):
+    """Переслать предложение конкретному пользователю"""
+    target_sid = None
+    for sid, name in connected_users.items():
+        if name == data['to_username']:
+            target_sid = sid
+            break
+    if not target_sid:
+        emit('call_error', {'message': 'Пользователь не найден'})
+        return
+    emit('incoming_call', {
+        'from_username': data['from_username'],
+        'signal': data['signal']
+    }, room=target_sid)
 
-        function addFileMessage(username, filename, fileData, mime, size) {
-            const div = document.createElement('div');
-            div.className = 'msg';
-            div.innerHTML = `<span class="username">${escapeHtml(username)}:</span> файл: ${escapeHtml(filename)} (${formatSize(size)})<br>`;
-            const a = document.createElement('a');
-            a.href = `data:${mime};base64,${fileData}`;
-            a.download = filename;
-            a.className = 'file-link';
-            a.textContent = '📥 Скачать';
-            div.appendChild(a);
-            messagesDiv.appendChild(div);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            notifyIfHidden(username, 'файл', filename);
-        }
+@socketio.on('call_accepted')
+def handle_call_accepted(data):
+    """Ответ вызывающему, что звонок принят"""
+    target_sid = None
+    for sid, name in connected_users.items():
+        if name == data['to_username']:
+            target_sid = sid
+            break
+    if target_sid:
+        emit('call_accepted', {'signal': data['signal']}, room=target_sid)
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
+@socketio.on('call_rejected')
+def handle_call_rejected(data):
+    target_sid = None
+    for sid, name in connected_users.items():
+        if name == data['to_username']:
+            target_sid = sid
+            break
+    if target_sid:
+        emit('call_rejected', {'message': 'Звонок отклонён'}, room=target_sid)
 
-        function formatSize(bytes) {
-            if (bytes < 1024) return bytes + ' B';
-            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' КБ';
-            return (bytes / (1024 * 1024)).toFixed(1) + ' МБ';
-        }
+@socketio.on('hang_up')
+def handle_hang_up(data):
+    target_sid = None
+    for sid, name in connected_users.items():
+        if name == data['to_username']:
+            target_sid = sid
+            break
+    if target_sid:
+        emit('call_ended', {}, room=target_sid)
 
-        // ----- Текстовые сообщения -----
-        function sendText() {
-            const text = textInput.value.trim();
-            if (!text) return;
-            socket.emit('text_message', {
-                username: usernameInput.value || 'Аноним',
-                text: text
-            });
-            textInput.value = '';
-        }
+@socketio.on('ice_candidate')
+def handle_ice(data):
+    target_sid = None
+    for sid, name in connected_users.items():
+        if name == data['to_username']:
+            target_sid = sid
+            break
+    if target_sid:
+        emit('ice_candidate', {'candidate': data['candidate']}, room=target_sid)
 
-        textInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendText();
-        });
-
-        // ----- Голосовые сообщения (без изменений) -----
-        async function toggleRecord() {
-            if (!isRecording) {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    mediaRecorder = new MediaRecorder(stream);
-                    audioChunks = [];
-
-                    mediaRecorder.ondataavailable = event => {
-                        if (event.data.size > 0) audioChunks.push(event.data);
-                    };
-
-                    mediaRecorder.onstop = () => {
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                            const base64 = reader.result.split(',')[1];
-                            socket.emit('voice_message', {
-                                username: usernameInput.value || 'Аноним',
-                                audio: base64
-                            });
-                        };
-                        reader.readAsDataURL(audioBlob);
-                        stream.getTracks().forEach(track => track.stop());
-                    };
-
-                    mediaRecorder.start();
-                    isRecording = true;
-                    recordBtn.textContent = '⏹ Стоп';
-                    recordBtn.classList.add('recording');
-                } catch (err) {
-                    alert('Нет доступа к микрофону: ' + err.message);
-                }
-            } else {
-                if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                    mediaRecorder.stop();
-                }
-                isRecording = false;
-                recordBtn.textContent = '🎤 Запись';
-                recordBtn.classList.remove('recording');
-            }
-        }
-
-        // ----- Фото с сжатием (до 30 МБ исходного, сжатие до 5 МБ) -----
-        const MAX_ORIGINAL_MB = 30;
-        const MAX_FINAL_BASE64_MB = 5;
-        const TARGET_IMAGE_PX = 1600;
-
-        function selectImage() { imageInput.click(); }
-
-        function sendImage(input) {
-            const file = input.files[0];
-            if (!file) return;
-            if (file.size > MAX_ORIGINAL_MB * 1024 * 1024) {
-                alert(`Файл слишком большой. Максимальный размер: ${MAX_ORIGINAL_MB} МБ.`);
-                imageInput.value = '';
-                return;
-            }
-            statusMsg.textContent = 'Обработка фото...';
-            if (file.size <= MAX_FINAL_BASE64_MB * 1024 * 1024) {
-                readAndSendImage(file);
-            } else {
-                compressImage(file, (compressedFile) => readAndSendImage(compressedFile));
-            }
-        }
-
-        function readAndSendImage(file) {
-            const reader = new FileReader();
-            reader.onload = () => {
-                const base64 = reader.result.split(',')[1];
-                const mime = file.type || 'image/jpeg';
-                socket.emit('image_message', {
-                    username: usernameInput.value || 'Аноним',
-                    image: base64,
-                    mime: mime
-                });
-                imageInput.value = '';
-                statusMsg.textContent = '';
-            };
-            reader.onerror = () => {
-                alert('Ошибка чтения файла.');
-                imageInput.value = '';
-                statusMsg.textContent = '';
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function compressImage(file, callback) {
-            const img = new Image();
-            const url = URL.createObjectURL(file);
-            img.onload = () => {
-                URL.revokeObjectURL(url);
-                let { width, height } = img;
-                const maxDim = TARGET_IMAGE_PX;
-                if (width > maxDim || height > maxDim) {
-                    if (width > height) {
-                        height = (height / width) * maxDim;
-                        width = maxDim;
-                    } else {
-                        width = (width / height) * maxDim;
-                        height = maxDim;
-                    }
-                }
-                const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-
-                const tryQuality = (quality) => {
-                    canvas.toBlob((blob) => {
-                        if (!blob) {
-                            canvas.toBlob((fallback) => callback(fallback), 'image/jpeg', 0.5);
-                            return;
-                        }
-                        const estimatedBase64MB = (blob.size * 1.37) / (1024 * 1024);
-                        if (estimatedBase64MB <= MAX_FINAL_BASE64_MB || quality <= 0.3) {
-                            callback(blob);
-                        } else {
-                            tryQuality(Math.max(0.3, quality - 0.15));
-                        }
-                    }, 'image/jpeg', quality);
-                };
-                tryQuality(0.7);
-            };
-            img.onerror = () => {
-                alert('Не удалось загрузить изображение для сжатия.');
-                imageInput.value = '';
-                statusMsg.textContent = '';
-            };
-            img.src = url;
-        }
-
-        // ----- Отправка любых файлов (до 10 МБ) -----
-        const MAX_FILE_MB = 10;
-
-        function selectFile() { fileInput.click(); }
-
-        function sendFile(input) {
-            const file = input.files[0];
-            if (!file) return;
-            if (file.size > MAX_FILE_MB * 1024 * 1024) {
-                alert(`Файл слишком большой. Максимальный размер: ${MAX_FILE_MB} МБ.`);
-                fileInput.value = '';
-                return;
-            }
-            statusMsg.textContent = 'Загрузка файла...';
-            const reader = new FileReader();
-            reader.onload = () => {
-                const base64 = reader.result.split(',')[1];
-                socket.emit('file_message', {
-                    username: usernameInput.value || 'Аноним',
-                    filename: file.name,
-                    file_data: base64,
-                    mime: file.type || 'application/octet-stream',
-                    size: file.size
-                });
-                fileInput.value = '';
-                statusMsg.textContent = '';
-            };
-            reader.onerror = () => {
-                alert('Ошибка чтения файла.');
-                fileInput.value = '';
-                statusMsg.textContent = '';
-            };
-            reader.readAsDataURL(file);
-        }
-
-        // ----- Обработчики сокета (все сообщения вызывают add-функции, которые уже включают уведомления) -----
-        socket.on('connect', () => addSystemMessage('✅ Вы подключены'));
-        socket.on('user_joined', (data) => addSystemMessage(data.msg));
-        socket.on('user_left', (data) => addSystemMessage(data.msg));
-        socket.on('text_message', (data) => addTextMessage(data.username, data.text));
-        socket.on('voice_message', (data) => addVoiceMessage(data.username, data.audio));
-        socket.on('image_message', (data) => addImageMessage(data.username, data.image, data.mime));
-        socket.on('file_message', (data) => addFileMessage(data.username, data.filename, data.file_data, data.mime, data.size));
-
-        // Восстанавливаем заголовок, когда вкладка снова активна
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) {
-                document.title = 'PyMessenger';
-            }
-        });
-    </script>
-</body>
-</html>
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
