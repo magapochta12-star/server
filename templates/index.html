@@ -2,17 +2,74 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>PyMessenger</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 10px; }
-        #messages { border: 1px solid #ccc; height: 400px; overflow-y: scroll; padding: 10px; margin: 10px 0; }
-        .msg { margin: 5px 0; }
-        .username { font-weight: bold; color: #2c3e50; }
-        .system { color: #666; font-style: italic; }
+        :root {
+            --bg: #ffffff;
+            --text: #2c3e50;
+            --msg-bg: #ffffff;
+            --system-text: #666;
+            --border: #ccc;
+            --btn-bg: #3498db;
+            --btn-text: white;
+            --user-bg: #eee;
+        }
+        .dark-theme {
+            --bg: #1e1e1e;
+            --text: #ddd;
+            --msg-bg: #2a2a2a;
+            --system-text: #aaa;
+            --border: #444;
+            --btn-bg: #2980b9;
+            --btn-text: white;
+            --user-bg: #333;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 10px;
+            background-color: var(--bg);
+            color: var(--text);
+            transition: background 0.3s, color 0.3s;
+        }
+        #messages {
+            border: 1px solid var(--border);
+            height: 300px;
+            overflow-y: scroll;
+            padding: 10px;
+            margin: 10px 0;
+            background: var(--msg-bg);
+            border-radius: 5px;
+        }
+        .msg {
+            margin: 5px 0;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 0.3em;
+        }
+        .username { font-weight: bold; color: #3498db; }
+        .system { color: var(--system-text); font-style: italic; }
+        .time {
+            font-size: 0.8em;
+            color: var(--system-text);
+            margin-left: auto;
+            white-space: nowrap;
+        }
         #input-area { display: flex; gap: 5px; margin-bottom: 10px; flex-wrap: wrap; }
-        #text-input { flex: 1; min-width: 150px; padding: 8px; }
-        button { padding: 8px 12px; background: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        #text-input { flex: 1; min-width: 120px; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--msg-bg); color: var(--text); }
+        button {
+            padding: 8px 12px;
+            background: var(--btn-bg);
+            color: var(--btn-text);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
         #record-btn { background: #e74c3c; }
         #record-btn.recording { background: #c0392b; animation: pulse 1s infinite; }
         #image-btn { background: #27ae60; }
@@ -21,41 +78,29 @@
         audio, img { display: block; margin-top: 5px; max-width: 100%; }
         img { max-height: 300px; border-radius: 5px; }
         .file-link { display: inline-block; margin-top: 5px; padding: 5px 10px; background: #ecf0f1; border-radius: 4px; text-decoration: none; color: #2c3e50; }
-        #status-msg { font-size: 0.9em; color: #555; margin-left: 5px; }
-
-        /* Стили для всплывающего уведомления (тоста) */
-        #toast-container {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            z-index: 9999;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .toast {
-            background: #333;
-            color: #fff;
-            padding: 12px 16px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            min-width: 200px;
-            max-width: 300px;
-            font-size: 14px;
-            animation: slideIn 0.3s ease, fadeOut 0.5s 4.5s forwards;
-            word-break: break-word;
-        }
+        #status-msg { font-size: 0.9em; color: var(--system-text); margin-left: 5px; }
+        #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+        .toast { background: #333; color: #fff; padding: 12px 16px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); min-width: 200px; max-width: 300px; font-size: 14px; animation: slideIn 0.3s ease, fadeOut 0.5s 4.5s forwards; }
         .toast .toast-username { font-weight: bold; color: #3498db; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes fadeOut { to { opacity: 0; transform: translateX(100%); } }
+        #user-list { margin: 10px 0; }
+        #user-list span { cursor: pointer; padding: 4px 8px; background: var(--user-bg); border-radius: 4px; margin: 2px; display: inline-block; font-size: 14px; }
+        #typing-indicator { font-style: italic; color: var(--system-text); margin: 5px 0; height: 1.2em; }
+        .theme-toggle { cursor: pointer; font-size: 1.2em; background: none; border: none; }
     </style>
 </head>
 <body>
-    <h2>PyMessenger</h2>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>PyMessenger</h2>
+        <button class="theme-toggle" id="theme-toggle">🌙</button>
+    </div>
     <div>
         <input type="text" id="username" placeholder="Ваше имя" value="Гость">
         <button onclick="requestNotificationPermission()" style="font-size:12px; padding:4px 8px;">🔔 Уведомления</button>
     </div>
+    <div id="user-list"><b>Онлайн:</b> <span id="online-users"></span></div>
+    <div id="typing-indicator"></div>
     <div id="messages"></div>
     <div id="input-area">
         <input type="text" id="text-input" placeholder="Введите сообщение...">
@@ -67,7 +112,6 @@
         <input type="file" id="file-input" style="display:none;" onchange="sendFile(this)">
         <span id="status-msg"></span>
     </div>
-    <!-- Контейнер для тостов -->
     <div id="toast-container"></div>
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
@@ -83,45 +127,51 @@
         const fileInput = document.getElementById('file-input');
         const statusMsg = document.getElementById('status-msg');
         const toastContainer = document.getElementById('toast-container');
+        const onlineUsersSpan = document.getElementById('online-users');
+        const typingIndicator = document.getElementById('typing-indicator');
+        const themeToggle = document.getElementById('theme-toggle');
 
-        let mediaRecorder;
-        let audioChunks = [];
-        let isRecording = false;
-        let notificationsEnabled = false;
+        let mediaRecorder, audioChunks = [], isRecording = false, notificationsEnabled = false;
+        let localUsername = 'Гость';
+        let typingTimer;
 
-        // ----- Функции уведомлений -----
+        // ---------- Тёмная тема ----------
+        function applyTheme(theme) {
+            document.body.classList.toggle('dark-theme', theme === 'dark');
+            themeToggle.textContent = theme === 'dark' ? '☀️' : '🌙';
+            localStorage.setItem('theme', theme);
+        }
+        themeToggle.onclick = () => {
+            const newTheme = document.body.classList.contains('dark-theme') ? 'light' : 'dark';
+            applyTheme(newTheme);
+        };
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        applyTheme(savedTheme);
+
+        // ---------- Уведомления ----------
         function showToast(username, type, preview) {
             const toast = document.createElement('div');
             toast.className = 'toast';
             toast.innerHTML = `<span class="toast-username">${escapeHtml(username)}</span> ${type}: ${escapeHtml(preview)}`;
             toastContainer.appendChild(toast);
-            // Автоматически удалить после анимации (5s)
-            setTimeout(() => {
-                if (toast.parentNode) toast.remove();
-            }, 5000);
+            setTimeout(() => { if (toast.parentNode) toast.remove(); }, 5000);
         }
-
         function showSystemNotification(title, body) {
             if (!notificationsEnabled || !('Notification' in window)) return;
             if (Notification.permission === 'granted') {
-                try {
-                    new Notification(title, { body, icon: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=' }); // пустая иконка, можно заменить
-                } catch (e) { /* игнорируем ошибки */ }
+                try { new Notification(title, { body }); } catch (e) {}
             }
         }
-
         function notifyIfHidden(username, messageType, preview) {
             if (document.hidden) {
                 showToast(username, messageType, preview);
                 showSystemNotification(username + ': ' + messageType, preview);
             }
-            // Также можно обновить заголовок вкладки
             if (document.hidden) {
                 document.title = '🔔 Новое сообщение';
                 setTimeout(() => { if (!document.hidden) document.title = 'PyMessenger'; }, 2000);
             }
         }
-
         function requestNotificationPermission() {
             if (!('Notification' in window)) {
                 alert('Ваш браузер не поддерживает уведомления.');
@@ -136,124 +186,111 @@
                 }
             });
         }
-
-        // При загрузке проверяем, есть ли уже разрешение
         if ('Notification' in window && Notification.permission === 'granted') {
             notificationsEnabled = true;
         }
 
-        // ----- Вспомогательные функции для сообщений -----
-        function addSystemMessage(text) {
-            const div = document.createElement('div');
-            div.className = 'msg system';
-            div.textContent = text;
-            messagesDiv.appendChild(div);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
-
-        function addTextMessage(username, text) {
-            const div = document.createElement('div');
-            div.className = 'msg';
-            div.innerHTML = `<span class="username">${escapeHtml(username)}:</span> ${escapeHtml(text)}`;
-            messagesDiv.appendChild(div);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            notifyIfHidden(username, 'сообщение', text.substring(0, 100));
-        }
-
-        function addVoiceMessage(username, audioBase64) {
-            const div = document.createElement('div');
-            div.className = 'msg';
-            div.innerHTML = `<span class="username">${escapeHtml(username)}:</span> голосовое сообщение<br>`;
-            const audio = document.createElement('audio');
-            audio.controls = true;
-            audio.src = "data:audio/webm;base64," + audioBase64;
-            div.appendChild(audio);
-            messagesDiv.appendChild(div);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            notifyIfHidden(username, 'голосовое', '🎤');
-        }
-
-        function addImageMessage(username, imageBase64, mime) {
-            const div = document.createElement('div');
-            div.className = 'msg';
-            div.innerHTML = `<span class="username">${escapeHtml(username)}:</span> фото<br>`;
-            const img = document.createElement('img');
-            img.src = `data:${mime};base64,${imageBase64}`;
-            img.onload = () => { messagesDiv.scrollTop = messagesDiv.scrollHeight; };
-            div.appendChild(img);
-            messagesDiv.appendChild(div);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            notifyIfHidden(username, 'фото', '📷');
-        }
-
-        function addFileMessage(username, filename, fileData, mime, size) {
-            const div = document.createElement('div');
-            div.className = 'msg';
-            div.innerHTML = `<span class="username">${escapeHtml(username)}:</span> файл: ${escapeHtml(filename)} (${formatSize(size)})<br>`;
-            const a = document.createElement('a');
-            a.href = `data:${mime};base64,${fileData}`;
-            a.download = filename;
-            a.className = 'file-link';
-            a.textContent = '📥 Скачать';
-            div.appendChild(a);
-            messagesDiv.appendChild(div);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            notifyIfHidden(username, 'файл', filename);
-        }
-
+        // ---------- Вспомогательные функции ----------
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
-
         function formatSize(bytes) {
             if (bytes < 1024) return bytes + ' B';
             if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' КБ';
             return (bytes / (1024 * 1024)).toFixed(1) + ' МБ';
         }
+        function getTime() {
+            const now = new Date();
+            return now.getHours().toString().padStart(2, '0') + ':' +
+                   now.getMinutes().toString().padStart(2, '0') + ':' +
+                   now.getSeconds().toString().padStart(2, '0');
+        }
 
-        // ----- Текстовые сообщения -----
+        // ---------- Добавление сообщений с временем ----------
+        function appendMessage(type, username, content, extra) {
+            const div = document.createElement('div');
+            div.className = 'msg';
+            const time = getTime();
+            if (type === 'system') {
+                div.classList.add('system');
+                div.innerHTML = `${content} <span class="time">${time}</span>`;
+            } else if (type === 'text') {
+                div.innerHTML = `<span class="username">${escapeHtml(username)}:</span> ${escapeHtml(content)} <span class="time">${time}</span>`;
+                notifyIfHidden(username, 'сообщение', content.substring(0, 100));
+            } else if (type === 'voice') {
+                div.innerHTML = `<span class="username">${escapeHtml(username)}:</span> голосовое сообщение <span class="time">${time}</span><br>`;
+                const audio = document.createElement('audio');
+                audio.controls = true;
+                audio.src = "data:audio/webm;base64," + content;
+                div.appendChild(audio);
+                notifyIfHidden(username, 'голосовое', '🎤');
+            } else if (type === 'image') {
+                div.innerHTML = `<span class="username">${escapeHtml(username)}:</span> фото <span class="time">${time}</span><br>`;
+                const img = document.createElement('img');
+                img.src = `data:${extra.mime};base64,${content}`;
+                img.onload = () => { messagesDiv.scrollTop = messagesDiv.scrollHeight; };
+                div.appendChild(img);
+                notifyIfHidden(username, 'фото', '📷');
+            } else if (type === 'file') {
+                div.innerHTML = `<span class="username">${escapeHtml(username)}:</span> файл: ${escapeHtml(extra.filename)} (${formatSize(extra.size)}) <span class="time">${time}</span><br>`;
+                const a = document.createElement('a');
+                a.href = `data:${extra.mime};base64,${content}`;
+                a.download = extra.filename;
+                a.className = 'file-link';
+                a.textContent = '📥 Скачать';
+                div.appendChild(a);
+                notifyIfHidden(username, 'файл', extra.filename);
+            }
+            messagesDiv.appendChild(div);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // ---------- Отправка текста и индикатор печати ----------
         function sendText() {
             const text = textInput.value.trim();
             if (!text) return;
-            socket.emit('text_message', {
-                username: usernameInput.value || 'Аноним',
-                text: text
-            });
+            socket.emit('text_message', { username: localUsername, text: text });
+            socket.emit('typing', { username: localUsername, typing: false });
             textInput.value = '';
         }
+
+        textInput.addEventListener('input', () => {
+            const typing = textInput.value.trim().length > 0;
+            socket.emit('typing', { username: localUsername, typing });
+            clearTimeout(typingTimer);
+            if (typing) {
+                typingTimer = setTimeout(() => {
+                    socket.emit('typing', { username: localUsername, typing: false });
+                }, 3000);
+            }
+        });
 
         textInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') sendText();
         });
 
-        // ----- Голосовые сообщения (без изменений) -----
+        // ---------- Голосовые сообщения ----------
         async function toggleRecord() {
             if (!isRecording) {
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     mediaRecorder = new MediaRecorder(stream);
                     audioChunks = [];
-
                     mediaRecorder.ondataavailable = event => {
                         if (event.data.size > 0) audioChunks.push(event.data);
                     };
-
                     mediaRecorder.onstop = () => {
                         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                         const reader = new FileReader();
                         reader.onloadend = () => {
                             const base64 = reader.result.split(',')[1];
-                            socket.emit('voice_message', {
-                                username: usernameInput.value || 'Аноним',
-                                audio: base64
-                            });
+                            socket.emit('voice_message', { username: localUsername, audio: base64 });
                         };
                         reader.readAsDataURL(audioBlob);
                         stream.getTracks().forEach(track => track.stop());
                     };
-
                     mediaRecorder.start();
                     isRecording = true;
                     recordBtn.textContent = '⏹ Стоп';
@@ -271,13 +308,11 @@
             }
         }
 
-        // ----- Фото с сжатием (до 30 МБ исходного, сжатие до 5 МБ) -----
+        // ---------- Фото и файлы (без изменений) ----------
         const MAX_ORIGINAL_MB = 30;
         const MAX_FINAL_BASE64_MB = 5;
         const TARGET_IMAGE_PX = 1600;
-
         function selectImage() { imageInput.click(); }
-
         function sendImage(input) {
             const file = input.files[0];
             if (!file) return;
@@ -293,17 +328,12 @@
                 compressImage(file, (compressedFile) => readAndSendImage(compressedFile));
             }
         }
-
         function readAndSendImage(file) {
             const reader = new FileReader();
             reader.onload = () => {
                 const base64 = reader.result.split(',')[1];
                 const mime = file.type || 'image/jpeg';
-                socket.emit('image_message', {
-                    username: usernameInput.value || 'Аноним',
-                    image: base64,
-                    mime: mime
-                });
+                socket.emit('image_message', { username: localUsername, image: base64, mime: mime });
                 imageInput.value = '';
                 statusMsg.textContent = '';
             };
@@ -314,21 +344,19 @@
             };
             reader.readAsDataURL(file);
         }
-
         function compressImage(file, callback) {
             const img = new Image();
             const url = URL.createObjectURL(file);
             img.onload = () => {
                 URL.revokeObjectURL(url);
                 let { width, height } = img;
-                const maxDim = TARGET_IMAGE_PX;
-                if (width > maxDim || height > maxDim) {
+                if (width > TARGET_IMAGE_PX || height > TARGET_IMAGE_PX) {
                     if (width > height) {
-                        height = (height / width) * maxDim;
-                        width = maxDim;
+                        height = (height / width) * TARGET_IMAGE_PX;
+                        width = TARGET_IMAGE_PX;
                     } else {
-                        width = (width / height) * maxDim;
-                        height = maxDim;
+                        width = (width / height) * TARGET_IMAGE_PX;
+                        height = TARGET_IMAGE_PX;
                     }
                 }
                 const canvas = document.createElement('canvas');
@@ -336,7 +364,6 @@
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
-
                 const tryQuality = (quality) => {
                     canvas.toBlob((blob) => {
                         if (!blob) {
@@ -361,11 +388,8 @@
             img.src = url;
         }
 
-        // ----- Отправка любых файлов (до 10 МБ) -----
         const MAX_FILE_MB = 10;
-
         function selectFile() { fileInput.click(); }
-
         function sendFile(input) {
             const file = input.files[0];
             if (!file) return;
@@ -379,7 +403,7 @@
             reader.onload = () => {
                 const base64 = reader.result.split(',')[1];
                 socket.emit('file_message', {
-                    username: usernameInput.value || 'Аноним',
+                    username: localUsername,
                     filename: file.name,
                     file_data: base64,
                     mime: file.type || 'application/octet-stream',
@@ -396,20 +420,46 @@
             reader.readAsDataURL(file);
         }
 
-        // ----- Обработчики сокета (все сообщения вызывают add-функции, которые уже включают уведомления) -----
-        socket.on('connect', () => addSystemMessage('✅ Вы подключены'));
-        socket.on('user_joined', (data) => addSystemMessage(data.msg));
-        socket.on('user_left', (data) => addSystemMessage(data.msg));
-        socket.on('text_message', (data) => addTextMessage(data.username, data.text));
-        socket.on('voice_message', (data) => addVoiceMessage(data.username, data.audio));
-        socket.on('image_message', (data) => addImageMessage(data.username, data.image, data.mime));
-        socket.on('file_message', (data) => addFileMessage(data.username, data.filename, data.file_data, data.mime, data.size));
+        // ---------- Регистрация и список онлайн ----------
+        usernameInput.addEventListener('change', () => {
+            localUsername = usernameInput.value.trim() || 'Гость';
+            socket.emit('register', { username: localUsername });
+        });
+        socket.on('connect', () => {
+            localUsername = usernameInput.value.trim() || 'Гость';
+            socket.emit('register', { username: localUsername });
+        });
 
-        // Восстанавливаем заголовок, когда вкладка снова активна
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) {
-                document.title = 'PyMessenger';
+        socket.on('update_user_list', (users) => {
+            onlineUsersSpan.innerHTML = '';
+            users.forEach(user => {
+                if (user !== localUsername) {
+                    const span = document.createElement('span');
+                    span.textContent = user;
+                    onlineUsersSpan.appendChild(span);
+                }
+            });
+        });
+
+        // ---------- Индикатор печати ----------
+        socket.on('typing', (data) => {
+            if (data.typing && data.username !== localUsername) {
+                typingIndicator.textContent = `${data.username} печатает...`;
+            } else {
+                typingIndicator.textContent = '';
             }
+        });
+
+        // ---------- Приём сообщений ----------
+        socket.on('text_message', (data) => appendMessage('text', data.username, data.text));
+        socket.on('voice_message', (data) => appendMessage('voice', data.username, data.audio));
+        socket.on('image_message', (data) => appendMessage('image', data.username, data.image, { mime: data.mime }));
+        socket.on('file_message', (data) => appendMessage('file', data.username, data.file_data, { filename: data.filename, mime: data.mime, size: data.size }));
+        socket.on('user_joined', (data) => appendMessage('system', '', data.msg));
+        socket.on('user_left', (data) => appendMessage('system', '', data.msg));
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) document.title = 'PyMessenger';
         });
     </script>
 </body>
