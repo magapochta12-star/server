@@ -258,7 +258,7 @@
         let mediaRecorder, audioChunks = [], isRecording = false, notificationsEnabled = false;
         let localUsername = usernameInput.value.trim() || 'Гость';
         let typingTimer;
-        let clearStatusTimer = null; // таймер для автоочистки статуса
+        let clearStatusTimer = null;
 
         // ---------- Тема ----------
         function applyTheme(theme) {
@@ -336,7 +336,6 @@
             }
         }
 
-        // Очистка статуса и прогресса с таймером
         function scheduleStatusClear(delay = 8000) {
             if (clearStatusTimer) clearTimeout(clearStatusTimer);
             clearStatusTimer = setTimeout(() => {
@@ -354,6 +353,11 @@
             setStatusText(actionStatus, '');
             showProgress(false);
         }
+
+        // Дополнительно: при фокусе на поле ввода всегда очищать статус
+        textInput.addEventListener('focus', () => {
+            clearStatusImmediately();
+        });
 
         // ---------- Сообщения ----------
         function addMessage(type, username, content, extra) {
@@ -431,7 +435,6 @@
                         reader.onloadend = () => {
                             const base64 = reader.result.split(',')[1];
                             socket.emit('voice_message', { username: localUsername, audio: base64 });
-                            // Автоочистка через 10 секунд, если не пришло подтверждение
                             scheduleStatusClear(10000);
                         };
                         reader.readAsDataURL(blob);
@@ -455,8 +458,11 @@
             }
         }
 
-        // ---------- Фото и файлы ----------
-        const MAX_ORIGINAL_MB = 30, MAX_FINAL_BASE64_MB = 4, TARGET_IMAGE_PX = 1200; // немного уменьшил целевой размер и пиксели
+        // ---------- Фото: увеличенный лимит, сжатие до 4.5 МБ, макс 2048px ----------
+        const MAX_ORIGINAL_MB = 50;           // можно загружать до 50 МБ
+        const MAX_FINAL_BASE64_MB = 4.5;      // цель после сжатия
+        const TARGET_IMAGE_PX = 2048;         // 2K
+
         function selectImage() { document.getElementById('image-input').click(); }
         function sendImage(input) {
             const file = input.files[0];
@@ -468,20 +474,19 @@
             }
             socket.emit('action_status', { username: localUsername, action: 'sending_photo' });
             showProgress(true);
-            scheduleStatusClear(8000);  // тайм-аут 8 секунд
-            if (file.size <= MAX_FINAL_BASE64_MB * 1024 * 1024) {
-                readAndSendImage(file);
-            } else {
-                compressImage(file, (blob) => {
-                    if (!blob) {
-                        alert('Не удалось сжать фото');
-                        clearStatusImmediately();
-                        return;
-                    }
-                    readAndSendImage(blob);
-                });
-            }
+            scheduleStatusClear(8000);
+
+            // Всегда сжимаем, даже если файл маленький — для единообразия и уменьшения трафика
+            compressImage(file, (blob) => {
+                if (!blob) {
+                    alert('Не удалось обработать фото');
+                    clearStatusImmediately();
+                    return;
+                }
+                readAndSendImage(blob);
+            });
         }
+
         function readAndSendImage(file) {
             const reader = new FileReader();
             reader.onload = () => {
@@ -495,37 +500,46 @@
             };
             reader.readAsDataURL(file);
         }
+
         function compressImage(file, callback) {
             const img = new Image();
             const url = URL.createObjectURL(file);
             img.onload = () => {
                 URL.revokeObjectURL(url);
                 let { width, height } = img;
+                // Масштабируем, если больше 2048
                 if (width > TARGET_IMAGE_PX || height > TARGET_IMAGE_PX) {
-                    if (width > height) { height = (height / width) * TARGET_IMAGE_PX; width = TARGET_IMAGE_PX; }
-                    else { width = (width / height) * TARGET_IMAGE_PX; height = TARGET_IMAGE_PX; }
+                    if (width > height) {
+                        height = (height / width) * TARGET_IMAGE_PX;
+                        width = TARGET_IMAGE_PX;
+                    } else {
+                        width = (width / height) * TARGET_IMAGE_PX;
+                        height = TARGET_IMAGE_PX;
+                    }
                 }
                 const canvas = document.createElement('canvas');
-                canvas.width = width; canvas.height = height;
+                canvas.width = width;
+                canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
-                // Пытаемся уместить в MAX_FINAL_BASE64_MB
+
                 const tryQuality = (q) => {
                     canvas.toBlob((blob) => {
                         if (!blob) {
-                            // экстренный fallback
+                            // fallback
                             canvas.toBlob(fb => callback(fb), 'image/jpeg', 0.4);
                             return;
                         }
-                        const est = (blob.size * 1.37) / (1024 * 1024);
-                        if (est <= MAX_FINAL_BASE64_MB || q <= 0.3) {
+                        // Оцениваем размер base64
+                        const estimatedBase64MB = (blob.size * 1.37) / (1024 * 1024);
+                        if (estimatedBase64MB <= MAX_FINAL_BASE64_MB || q <= 0.2) {
                             callback(blob);
                         } else {
-                            tryQuality(Math.max(0.3, q - 0.15));
+                            tryQuality(Math.max(0.2, q - 0.1));
                         }
                     }, 'image/jpeg', q);
                 };
-                tryQuality(0.6); // стартуем с более сильного сжатия
+                tryQuality(0.7);
             };
             img.onerror = () => {
                 alert('Не удалось загрузить изображение для сжатия');
@@ -534,12 +548,14 @@
             img.src = url;
         }
 
+        // ---------- Файлы ----------
+        const MAX_FILE_MB = 10;
         function selectFile() { document.getElementById('file-input').click(); }
         function sendFile(input) {
             const file = input.files[0];
             if (!file) return;
-            if (file.size > 10 * 1024 * 1024) {
-                alert('Максимум 10 МБ');
+            if (file.size > MAX_FILE_MB * 1024 * 1024) {
+                alert(`Максимум ${MAX_FILE_MB} МБ`);
                 input.value = '';
                 return;
             }
@@ -589,7 +605,7 @@
             messages.forEach(msg => addMessage('text', msg.username, msg.text));
         });
 
-        // ---------- Индикаторы и очистка статуса при своих сообщениях ----------
+        // ---------- Индикаторы и очистка статуса ----------
         socket.on('typing', (data) => {
             setStatusText(typingIndicator, data.typing ? `${data.username} печатает...` : '');
         });
@@ -601,7 +617,6 @@
             else setStatusText(actionStatus, '');
         });
 
-        // При получении своего медиа – убираем статус и прогресс мгновенно
         function clearMyStatus(username) {
             if (username === localUsername) {
                 clearStatusImmediately();
