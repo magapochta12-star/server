@@ -44,7 +44,6 @@
             transition: background var(--transition), color var(--transition);
             overflow: hidden;
             -webkit-tap-highlight-color: transparent;
-            padding-bottom: env(safe-area-inset-bottom, 0px);
         }
         /* Шапка */
         .header {
@@ -124,7 +123,7 @@
             background: var(--bg);
             scroll-behavior: smooth;
             -webkit-overflow-scrolling: touch;
-            touch-action: pan-y; /* важно для мобильного скролла */
+            touch-action: pan-y;
         }
         .message {
             display: flex;
@@ -220,7 +219,7 @@
             align-items: center;
             box-shadow: 0 -1px 4px rgba(0,0,0,0.05);
             z-index: 10;
-            padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+            margin-bottom: 0; /* по умолчанию */
         }
         #text-input {
             flex: 1;
@@ -255,8 +254,11 @@
             background: #e74c3c;
         }
 
-        /* Адаптация для мобильных */
+        /* Поднимаем панель на 75px только для мобильных */
         @media (max-width: 500px) {
+            .input-panel {
+                margin-bottom: 75px;
+            }
             .header { padding: 6px 10px; }
             .header h2 { font-size: 1.1em; }
             .theme-toggle { font-size: 1.2em; }
@@ -267,7 +269,7 @@
             .chat-container { padding: 8px 10px; gap: 6px; }
             .message { max-width: 90%; padding: 6px 10px; }
             .message .text { font-size: 0.9em; }
-            .input-panel { padding: 6px 8px; gap: 4px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+            .input-panel { padding: 6px 8px; gap: 4px; }
             #text-input { padding: 6px 10px; font-size: 0.85em; }
             .input-panel button { width: 34px; height: 34px; font-size: 1em; }
             .action-status { font-size: 0.75em; }
@@ -323,39 +325,10 @@
         const actionStatus = document.getElementById('action-status');
         const onlineUsersSpan = document.getElementById('online-users');
         const themeToggle = document.getElementById('theme-toggle');
-        const inputPanel = document.getElementById('input-panel');
 
         let mediaRecorder, audioChunks = [], isRecording = false, notificationsEnabled = false;
         let localUsername = usernameInput.value.trim() || 'Гость';
         let typingTimer;
-
-        // ---------- Исправление скролла и отступа на мобильных ----------
-        function isMobile() {
-            return /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent);
-        }
-
-        // При фокусе на поле ввода поднимаем панель и прокручиваем чат вниз
-        textInput.addEventListener('focus', () => {
-            if (isMobile()) {
-                // Небольшая задержка, чтобы клавиатура открылась
-                setTimeout(() => {
-                    chatContainer.scrollTop = chatContainer.scrollHeight;
-                    // Дополнительно можно использовать scrollIntoView, но достаточно скролла чата
-                }, 300);
-            }
-        });
-
-        // При потере фокуса возвращаем всё на место
-        textInput.addEventListener('blur', () => {
-            if (isMobile()) {
-                chatContainer.scrollTop = chatContainer.scrollHeight;
-            }
-        });
-
-        // Обеспечиваем, чтобы чат-контейнер прокручивался при новых сообщениях
-        function scrollToBottom() {
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
 
         // ---------- Тема ----------
         function applyTheme(theme) {
@@ -451,7 +424,7 @@
                 div.innerHTML += `<span class="time">${getTime()}</span>`;
             }
             messagesDiv.appendChild(div);
-            scrollToBottom();
+            chatContainer.scrollTop = chatContainer.scrollHeight;
         }
 
         // ---------- Отправка текста и индикатор печати ----------
@@ -461,7 +434,6 @@
             socket.emit('text_message', { username: localUsername, text });
             socket.emit('typing', { username: localUsername, typing: false });
             textInput.value = '';
-            scrollToBottom();
         }
 
         textInput.addEventListener('input', () => {
