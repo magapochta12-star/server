@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>PyMessenger</title>
     <style>
         :root {
@@ -221,6 +221,7 @@
             gap: 6px;
             align-items: center;
             box-shadow: 0 -1px 4px rgba(0,0,0,0.05);
+            transition: padding-bottom 0.2s;
         }
         #text-input {
             flex: 1;
@@ -255,7 +256,15 @@
             background: #e74c3c;
         }
 
-        /* Адаптация для мобильных */
+        /* Класс для мобильных устройств – поднимает панель над нижней панелью браузера */
+        body.mobile .input-panel {
+            padding-bottom: 12px; /* базовый отступ */
+            /* используем safe-area-inset-bottom, если поддерживается */
+            padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+            margin-bottom: 0;
+        }
+
+        /* Дополнительная адаптация для маленьких экранов */
         @media (max-width: 500px) {
             .header {
                 padding: 6px 10px;
@@ -315,7 +324,6 @@
             }
         }
 
-        /* Для очень маленьких экранов (iPhone SE и т.п.) */
         @media (max-width: 375px) {
             .input-panel button {
                 width: 30px;
@@ -346,7 +354,6 @@
         <button class="theme-toggle" id="theme-toggle">🌙</button>
     </div>
 
-    <!-- Строка с ником и кнопкой уведомлений -->
     <div class="user-settings">
         <input type="text" id="username" placeholder="Ваше имя" value="Гость">
         <button onclick="requestNotificationPermission()">🔔</button>
@@ -372,7 +379,14 @@
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
-        // Весь JavaScript остаётся без изменений (как в предыдущей версии)
+        // Определяем мобильное устройство и добавляем класс
+        (function() {
+            const isMobile = /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent);
+            if (isMobile) {
+                document.body.classList.add('mobile');
+            }
+        })();
+
         const socket = io();
         const chatContainer = document.getElementById('chat-container');
         const messagesDiv = document.getElementById('messages');
