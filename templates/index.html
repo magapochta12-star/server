@@ -258,7 +258,6 @@
         let mediaRecorder, audioChunks = [], isRecording = false, notificationsEnabled = false;
         let localUsername = usernameInput.value.trim() || 'Гость';
         let typingTimer;
-        let clearStatusTimer = null;
 
         // ---------- Тема ----------
         function applyTheme(theme) {
@@ -314,7 +313,7 @@
             return now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
         }
 
-        // ---------- Управление статусом и прогрессом ----------
+        // ---------- Управление статусом и прогрессом (локальное) ----------
         function setStatusText(element, text) {
             if (text) {
                 element.textContent = text;
@@ -336,28 +335,11 @@
             }
         }
 
-        function scheduleStatusClear(delay = 8000) {
-            if (clearStatusTimer) clearTimeout(clearStatusTimer);
-            clearStatusTimer = setTimeout(() => {
-                setStatusText(actionStatus, '');
-                showProgress(false);
-                clearStatusTimer = null;
-            }, delay);
-        }
-
-        function clearStatusImmediately() {
-            if (clearStatusTimer) {
-                clearTimeout(clearStatusTimer);
-                clearStatusTimer = null;
-            }
+        // Мгновенная локальная очистка статуса и прогресса
+        function clearLocalStatus() {
             setStatusText(actionStatus, '');
             showProgress(false);
         }
-
-        // Дополнительно: при фокусе на поле ввода всегда очищать статус
-        textInput.addEventListener('focus', () => {
-            clearStatusImmediately();
-        });
 
         // ---------- Сообщения ----------
         function addMessage(type, username, content, extra) {
@@ -421,7 +403,7 @@
             if (e.key === 'Enter') sendText();
         });
 
-        // ---------- Голосовые сообщения ----------
+        // ---------- Голосовые сообщения (статус очищается сразу при остановке) ----------
         async function toggleRecord() {
             if (!isRecording) {
                 try {
@@ -435,7 +417,10 @@
                         reader.onloadend = () => {
                             const base64 = reader.result.split(',')[1];
                             socket.emit('voice_message', { username: localUsername, audio: base64 });
-                            scheduleStatusClear(10000);
+                            // Мгновенно очищаем свой статус
+                            clearLocalStatus();
+                            // Оповещаем других, что запись завершена
+                            socket.emit('action_status', { username: localUsername, action: '' });
                         };
                         reader.readAsDataURL(blob);
                         stream.getTracks().forEach(t => t.stop());
@@ -444,6 +429,9 @@
                     isRecording = true;
                     recordBtn.textContent = '⏹';
                     recordBtn.classList.add('recording');
+                    // Показываем статус записи
+                    setStatusText(actionStatus, `${localUsername} записывает аудио...`);
+                    // Отправляем статус другим
                     socket.emit('action_status', { username: localUsername, action: 'recording' });
                 } catch (err) {
                     alert('Нет доступа к микрофону: ' + err.message);
@@ -455,13 +443,16 @@
                 isRecording = false;
                 recordBtn.textContent = '🎤';
                 recordBtn.classList.remove('recording');
+                // Статус очистится в onstop, но на случай, если onstop не сработает, чистим здесь
+                clearLocalStatus();
+                socket.emit('action_status', { username: localUsername, action: '' });
             }
         }
 
-        // ---------- Фото: увеличенный лимит, сжатие до 4.5 МБ, макс 2048px ----------
-        const MAX_ORIGINAL_MB = 50;           // можно загружать до 50 МБ
-        const MAX_FINAL_BASE64_MB = 4.5;      // цель после сжатия
-        const TARGET_IMAGE_PX = 2048;         // 2K
+        // ---------- Фото (статус очищается сразу после отправки) ----------
+        const MAX_ORIGINAL_MB = 50;
+        const MAX_FINAL_BASE64_MB = 4.5;
+        const TARGET_IMAGE_PX = 2048;
 
         function selectImage() { document.getElementById('image-input').click(); }
         function sendImage(input) {
@@ -472,33 +463,34 @@
                 input.value = '';
                 return;
             }
-            socket.emit('action_status', { username: localUsername, action: 'sending_photo' });
+            // Показываем статус и прогресс
+            setStatusText(actionStatus, `${localUsername} отправляет фото...`);
             showProgress(true);
-            scheduleStatusClear(8000);
+            socket.emit('action_status', { username: localUsername, action: 'sending_photo' });
 
-            // Всегда сжимаем, даже если файл маленький — для единообразия и уменьшения трафика
             compressImage(file, (blob) => {
                 if (!blob) {
                     alert('Не удалось обработать фото');
-                    clearStatusImmediately();
+                    clearLocalStatus();
+                    socket.emit('action_status', { username: localUsername, action: '' });
                     return;
                 }
-                readAndSendImage(blob);
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const base64 = reader.result.split(',')[1];
+                    const mime = file.type || 'image/jpeg';
+                    socket.emit('image_message', { username: localUsername, image: base64, mime });
+                    // Мгновенно очищаем статус и прогресс
+                    clearLocalStatus();
+                    socket.emit('action_status', { username: localUsername, action: '' });
+                };
+                reader.onerror = () => {
+                    alert('Ошибка чтения файла');
+                    clearLocalStatus();
+                    socket.emit('action_status', { username: localUsername, action: '' });
+                };
+                reader.readAsDataURL(blob);
             });
-        }
-
-        function readAndSendImage(file) {
-            const reader = new FileReader();
-            reader.onload = () => {
-                const base64 = reader.result.split(',')[1];
-                const mime = file.type || 'image/jpeg';
-                socket.emit('image_message', { username: localUsername, image: base64, mime });
-            };
-            reader.onerror = () => {
-                alert('Ошибка чтения файла');
-                clearStatusImmediately();
-            };
-            reader.readAsDataURL(file);
         }
 
         function compressImage(file, callback) {
@@ -507,7 +499,6 @@
             img.onload = () => {
                 URL.revokeObjectURL(url);
                 let { width, height } = img;
-                // Масштабируем, если больше 2048
                 if (width > TARGET_IMAGE_PX || height > TARGET_IMAGE_PX) {
                     if (width > height) {
                         height = (height / width) * TARGET_IMAGE_PX;
@@ -526,11 +517,9 @@
                 const tryQuality = (q) => {
                     canvas.toBlob((blob) => {
                         if (!blob) {
-                            // fallback
                             canvas.toBlob(fb => callback(fb), 'image/jpeg', 0.4);
                             return;
                         }
-                        // Оцениваем размер base64
                         const estimatedBase64MB = (blob.size * 1.37) / (1024 * 1024);
                         if (estimatedBase64MB <= MAX_FINAL_BASE64_MB || q <= 0.2) {
                             callback(blob);
@@ -543,12 +532,13 @@
             };
             img.onerror = () => {
                 alert('Не удалось загрузить изображение для сжатия');
-                clearStatusImmediately();
+                clearLocalStatus();
+                socket.emit('action_status', { username: localUsername, action: '' });
             };
             img.src = url;
         }
 
-        // ---------- Файлы ----------
+        // ---------- Файлы (статус очищается сразу после отправки) ----------
         const MAX_FILE_MB = 10;
         function selectFile() { document.getElementById('file-input').click(); }
         function sendFile(input) {
@@ -559,9 +549,10 @@
                 input.value = '';
                 return;
             }
-            socket.emit('action_status', { username: localUsername, action: 'sending_file' });
+            setStatusText(actionStatus, `${localUsername} отправляет файл...`);
             showProgress(true);
-            scheduleStatusClear(8000);
+            socket.emit('action_status', { username: localUsername, action: 'sending_file' });
+
             const reader = new FileReader();
             reader.onload = () => {
                 const base64 = reader.result.split(',')[1];
@@ -572,10 +563,13 @@
                     mime: file.type || 'application/octet-stream',
                     size: file.size
                 });
+                clearLocalStatus();
+                socket.emit('action_status', { username: localUsername, action: '' });
             };
             reader.onerror = () => {
                 alert('Ошибка чтения файла');
-                clearStatusImmediately();
+                clearLocalStatus();
+                socket.emit('action_status', { username: localUsername, action: '' });
             };
             reader.readAsDataURL(file);
         }
@@ -605,37 +599,24 @@
             messages.forEach(msg => addMessage('text', msg.username, msg.text));
         });
 
-        // ---------- Индикаторы и очистка статуса ----------
+        // ---------- Индикаторы от сервера (для чужих действий) ----------
         socket.on('typing', (data) => {
             setStatusText(typingIndicator, data.typing ? `${data.username} печатает...` : '');
         });
 
         socket.on('action_status', (data) => {
+            if (data.username === localUsername) return; // свои статусы игнорируем, управляем локально
             if (data.action === 'recording') setStatusText(actionStatus, `${data.username} записывает аудио...`);
             else if (data.action === 'sending_photo') setStatusText(actionStatus, `${data.username} отправляет фото...`);
             else if (data.action === 'sending_file') setStatusText(actionStatus, `${data.username} отправляет файл...`);
             else setStatusText(actionStatus, '');
         });
 
-        function clearMyStatus(username) {
-            if (username === localUsername) {
-                clearStatusImmediately();
-            }
-        }
-
+        // Приём сообщений
         socket.on('text_message', (d) => addMessage('text', d.username, d.text));
-        socket.on('voice_message', (d) => {
-            addMessage('voice', d.username, d.audio);
-            clearMyStatus(d.username);
-        });
-        socket.on('image_message', (d) => {
-            addMessage('image', d.username, d.image, { mime: d.mime });
-            clearMyStatus(d.username);
-        });
-        socket.on('file_message', (d) => {
-            addMessage('file', d.username, d.file_data, { filename: d.filename, mime: d.mime, size: d.size });
-            clearMyStatus(d.username);
-        });
+        socket.on('voice_message', (d) => addMessage('voice', d.username, d.audio));
+        socket.on('image_message', (d) => addMessage('image', d.username, d.image, { mime: d.mime }));
+        socket.on('file_message', (d) => addMessage('file', d.username, d.file_data, { filename: d.filename, mime: d.mime, size: d.size }));
         socket.on('user_joined', (d) => addMessage('system', '', d.msg));
         socket.on('user_left', (d) => addMessage('system', '', d.msg));
     </script>
