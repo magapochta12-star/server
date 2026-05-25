@@ -79,7 +79,6 @@
         }
         #hangup-btn { background: #e74c3c; }
 
-        /* Для очень маленьких экранов */
         @media (max-width: 400px) {
             .video-container video { width: 90%; min-width: 0; }
             .call-buttons button { font-size: 14px; padding: 10px 15px; }
@@ -443,25 +442,24 @@
             });
         });
 
-        // ---------- Звонки WebRTC ----------
+        // ---------- Звонки WebRTC (исправлено) ----------
         async function getMediaSafe() {
-            // Сначала пытаемся получить и видео, и аудио
             try {
                 return await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
             } catch (e) {
-                console.warn('Не удалось получить видео+аудио, пробуем только аудио:', e);
+                console.warn('Видео+аудио недоступны, пробуем только аудио:', e);
                 callStatus.textContent += ' (только аудио)';
                 try {
                     return await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
                 } catch (err) {
-                    throw new Error('Нет доступа ни к камере, ни к микрофону. Проверьте разрешения браузера.');
+                    throw new Error('Нет доступа ни к камере, ни к микрофону.');
                 }
             }
         }
 
         function showCallPanel() {
             callPanel.classList.add('active');
-            callPanel.style.display = 'flex';  // на всякий случай
+            callPanel.style.display = 'flex';
         }
 
         function hideCallPanel() {
@@ -499,23 +497,37 @@
             try {
                 localStream = await getMediaSafe();
                 localVideo.srcObject = localStream;
+                console.log('Локальный поток получен, дорожки:', localStream.getTracks());
 
                 peerConnection = new RTCPeerConnection(pcConfig);
-                localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+                // Добавляем локальные дорожки ДО создания предложения
+                localStream.getTracks().forEach(track => {
+                    console.log('Добавляем локальную дорожку:', track.kind);
+                    peerConnection.addTrack(track, localStream);
+                });
 
                 peerConnection.onicecandidate = (event) => {
                     if (event.candidate) {
+                        console.log('Отправляем ICE кандидат');
                         socket.emit('ice_candidate', {
                             to_username: toUsername,
                             candidate: event.candidate
                         });
                     }
                 };
+
                 peerConnection.ontrack = (event) => {
-                    remoteVideo.srcObject = event.streams[0];
+                    console.log('Получен удалённый трек:', event.track.kind, event.streams);
+                    if (event.streams[0]) {
+                        remoteVideo.srcObject = event.streams[0];
+                        remoteVideo.muted = false;
+                        remoteVideo.play().catch(e => console.warn('Ошибка воспроизведения удалённого видео:', e));
+                    }
                 };
 
                 const offer = await peerConnection.createOffer();
+                console.log('Создан offer, устанавливаем локальное описание');
                 await peerConnection.setLocalDescription(offer);
                 socket.emit('call_user', {
                     to_username: toUsername,
@@ -523,7 +535,6 @@
                     signal: offer
                 });
 
-                // Таймер на случай, если звонок не будет принят за 60 секунд
                 callTimer = setTimeout(() => {
                     if (currentRemoteUser) {
                         alert('Звонок не был принят.');
@@ -533,12 +544,14 @@
                 }, 60000);
 
             } catch (err) {
-                alert('Ошибка при начале звонка: ' + err.message);
+                console.error('Ошибка при начале звонка:', err);
+                alert('Ошибка: ' + err.message);
                 closeCall();
             }
         }
 
         socket.on('incoming_call', async (data) => {
+            console.log('Входящий звонок от', data.from_username);
             currentRemoteUser = data.from_username;
             showCallPanel();
             callStatus.textContent = `Входящий от ${data.from_username}`;
@@ -547,6 +560,7 @@
             hangupBtn.style.display = 'none';
 
             acceptBtn.onclick = async () => {
+                console.log('Принимаем звонок');
                 callStatus.textContent = 'Соединение...';
                 acceptBtn.style.display = 'none';
                 rejectBtn.style.display = 'none';
@@ -555,32 +569,50 @@
                 try {
                     localStream = await getMediaSafe();
                     localVideo.srcObject = localStream;
+                    console.log('Локальный поток получен, дорожки:', localStream.getTracks());
 
                     peerConnection = new RTCPeerConnection(pcConfig);
-                    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+                    // Добавляем дорожки до применения удалённого описания
+                    localStream.getTracks().forEach(track => {
+                        console.log('Добавляем локальную дорожку (приём):', track.kind);
+                        peerConnection.addTrack(track, localStream);
+                    });
 
                     peerConnection.onicecandidate = (event) => {
                         if (event.candidate) {
+                            console.log('Отправляем ICE кандидат (приём)');
                             socket.emit('ice_candidate', {
                                 to_username: currentRemoteUser,
                                 candidate: event.candidate
                             });
                         }
                     };
+
                     peerConnection.ontrack = (event) => {
-                        remoteVideo.srcObject = event.streams[0];
+                        console.log('Получен удалённый трек (приём):', event.track.kind, event.streams);
+                        if (event.streams[0]) {
+                            remoteVideo.srcObject = event.streams[0];
+                            remoteVideo.muted = false;
+                            remoteVideo.play().catch(e => console.warn('Ошибка воспроизведения удалённого видео:', e));
+                        }
                     };
 
+                    console.log('Устанавливаем удалённое описание (предложение)');
                     await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
+                    console.log('Создаём ответ');
                     const answer = await peerConnection.createAnswer();
+                    console.log('Устанавливаем локальное описание (ответ)');
                     await peerConnection.setLocalDescription(answer);
                     socket.emit('call_accepted', {
                         to_username: currentRemoteUser,
                         signal: answer
                     });
                     callStatus.textContent = 'Разговор...';
+
                 } catch (err) {
-                    alert('Ошибка при принятии звонка: ' + err.message);
+                    console.error('Ошибка при принятии звонка:', err);
+                    alert('Ошибка: ' + err.message);
                     closeCall();
                     socket.emit('hang_up', { to_username: currentRemoteUser });
                 }
@@ -591,7 +623,6 @@
                 closeCall();
             };
 
-            // Если не ответят в течение 60 секунд
             callTimer = setTimeout(() => {
                 if (currentRemoteUser) {
                     alert('Входящий звонок пропущен.');
@@ -601,9 +632,14 @@
         });
 
         socket.on('call_accepted', async (data) => {
+            console.log('Звонок принят, устанавливаем удалённое описание (ответ)');
             if (callTimer) clearTimeout(callTimer);
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
-            callStatus.textContent = 'Разговор...';
+            try {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
+                callStatus.textContent = 'Разговор...';
+            } catch (e) {
+                console.error('Ошибка установки удалённого описания:', e);
+            }
         });
 
         socket.on('call_rejected', () => {
@@ -619,6 +655,7 @@
         socket.on('ice_candidate', async (data) => {
             if (peerConnection) {
                 try {
+                    console.log('Получен ICE кандидат, добавляем');
                     await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
                 } catch (e) {
                     console.warn('Ошибка добавления ICE кандидата:', e);
