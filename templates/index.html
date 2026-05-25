@@ -2,18 +2,17 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PyMessenger</title>
     <style>
-        * { box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; padding: 10px; }
-        #messages { border: 1px solid #ccc; height: 300px; overflow-y: scroll; padding: 10px; margin: 10px 0; }
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 10px; }
+        #messages { border: 1px solid #ccc; height: 400px; overflow-y: scroll; padding: 10px; margin: 10px 0; }
         .msg { margin: 5px 0; }
         .username { font-weight: bold; color: #2c3e50; }
         .system { color: #666; font-style: italic; }
         #input-area { display: flex; gap: 5px; margin-bottom: 10px; flex-wrap: wrap; }
-        #text-input { flex: 1; min-width: 120px; padding: 8px; }
-        button { padding: 8px 12px; background: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        #text-input { flex: 1; min-width: 150px; padding: 8px; }
+        button { padding: 8px 12px; background: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; }
         #record-btn { background: #e74c3c; }
         #record-btn.recording { background: #c0392b; animation: pulse 1s infinite; }
         #image-btn { background: #27ae60; }
@@ -23,72 +22,32 @@
         img { max-height: 300px; border-radius: 5px; }
         .file-link { display: inline-block; margin-top: 5px; padding: 5px 10px; background: #ecf0f1; border-radius: 4px; text-decoration: none; color: #2c3e50; }
         #status-msg { font-size: 0.9em; color: #555; margin-left: 5px; }
-        #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
-        .toast { background: #333; color: #fff; padding: 12px 16px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); min-width: 200px; max-width: 300px; font-size: 14px; animation: slideIn 0.3s ease, fadeOut 0.5s 4.5s forwards; }
+
+        /* Стили для всплывающего уведомления (тоста) */
+        #toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast {
+            background: #333;
+            color: #fff;
+            padding: 12px 16px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            min-width: 200px;
+            max-width: 300px;
+            font-size: 14px;
+            animation: slideIn 0.3s ease, fadeOut 0.5s 4.5s forwards;
+            word-break: break-word;
+        }
         .toast .toast-username { font-weight: bold; color: #3498db; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes fadeOut { to { opacity: 0; transform: translateX(100%); } }
-
-        /* Панель звонка */
-        #call-panel {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.9);
-            z-index: 10000;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 10px;
-        }
-        #call-panel.active { display: flex; }
-        #call-status {
-            color: white;
-            font-size: 20px;
-            margin-bottom: 15px;
-            text-align: center;
-            font-weight: bold;
-        }
-        .video-container {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 10px;
-            width: 100%;
-            max-width: 600px;
-        }
-        .video-container video {
-            width: 45%;
-            min-width: 120px;
-            max-width: 250px;
-            background: #000;
-            border-radius: 10px;
-            border: 2px solid white;
-        }
-        .call-buttons {
-            margin-top: 20px;
-            display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-        .call-buttons button {
-            font-size: 18px;
-            padding: 14px 28px;
-            border-radius: 30px;
-            min-width: 120px;
-            font-weight: bold;
-        }
-        #hangup-btn { background: #e74c3c; }
-        #unmute-btn { background: #f1c40f; color: black; display: none; }
-
-        @media (max-width: 400px) {
-            .video-container video { width: 80%; min-width: 0; max-width: 200px; }
-            .call-buttons button { font-size: 16px; padding: 12px 22px; }
-        }
-
-        #user-list { margin: 10px 0; }
-        #user-list span { cursor: pointer; padding: 4px 8px; background: #eee; border-radius: 4px; margin: 2px; display: inline-block; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -97,7 +56,6 @@
         <input type="text" id="username" placeholder="Ваше имя" value="Гость">
         <button onclick="requestNotificationPermission()" style="font-size:12px; padding:4px 8px;">🔔 Уведомления</button>
     </div>
-    <div id="user-list"><b>Онлайн:</b> <span id="online-users"></span></div>
     <div id="messages"></div>
     <div id="input-area">
         <input type="text" id="text-input" placeholder="Введите сообщение...">
@@ -109,23 +67,8 @@
         <input type="file" id="file-input" style="display:none;" onchange="sendFile(this)">
         <span id="status-msg"></span>
     </div>
+    <!-- Контейнер для тостов -->
     <div id="toast-container"></div>
-
-    <!-- Панель звонка -->
-    <div id="call-panel">
-        <div id="call-status"></div>
-        <div class="video-container">
-            <!-- Локальное видео скрыто, так как мы без камеры -->
-            <video id="localVideo" autoplay muted playsinline style="display:none;"></video>
-            <video id="remoteVideo" autoplay muted playsinline></video>
-        </div>
-        <div class="call-buttons">
-            <button id="accept-btn" style="display:none; background: green;">Принять</button>
-            <button id="reject-btn" style="display:none; background: red;">Отклонить</button>
-            <button id="unmute-btn">🔊 Включить звук</button>
-            <button id="hangup-btn" style="display:none;">Завершить</button>
-        </div>
-    </div>
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
@@ -140,61 +83,45 @@
         const fileInput = document.getElementById('file-input');
         const statusMsg = document.getElementById('status-msg');
         const toastContainer = document.getElementById('toast-container');
-        const onlineUsersSpan = document.getElementById('online-users');
-        const callPanel = document.getElementById('call-panel');
-        const callStatus = document.getElementById('call-status');
-        const localVideo = document.getElementById('localVideo');
-        const remoteVideo = document.getElementById('remoteVideo');
-        const acceptBtn = document.getElementById('accept-btn');
-        const rejectBtn = document.getElementById('reject-btn');
-        const hangupBtn = document.getElementById('hangup-btn');
-        const unmuteBtn = document.getElementById('unmute-btn');
 
-        let mediaRecorder, audioChunks = [], isRecording = false, notificationsEnabled = false;
-        let localUsername = 'Гость';
-        let localStream, peerConnection;
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+        let notificationsEnabled = false;
 
-        // НОВАЯ КОНФИГУРАЦИЯ С НАДЁЖНЫМ TURN-СЕРВЕРОМ
-        const pcConfig = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                {
-                    urls: [
-                        'turns:global.relay.metered.ca:443?transport=tcp'
-                    ],
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject'
-                }
-            ]
-        };
-
-        let currentRemoteUser = null;
-        let callTimer = null;
-
-        // ---------- Уведомления ----------
+        // ----- Функции уведомлений -----
         function showToast(username, type, preview) {
             const toast = document.createElement('div');
             toast.className = 'toast';
             toast.innerHTML = `<span class="toast-username">${escapeHtml(username)}</span> ${type}: ${escapeHtml(preview)}`;
             toastContainer.appendChild(toast);
-            setTimeout(() => { if (toast.parentNode) toast.remove(); }, 5000);
+            // Автоматически удалить после анимации (5s)
+            setTimeout(() => {
+                if (toast.parentNode) toast.remove();
+            }, 5000);
         }
+
         function showSystemNotification(title, body) {
             if (!notificationsEnabled || !('Notification' in window)) return;
             if (Notification.permission === 'granted') {
-                try { new Notification(title, { body }); } catch (e) {}
+                try {
+                    new Notification(title, { body, icon: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=' }); // пустая иконка, можно заменить
+                } catch (e) { /* игнорируем ошибки */ }
             }
         }
+
         function notifyIfHidden(username, messageType, preview) {
             if (document.hidden) {
                 showToast(username, messageType, preview);
                 showSystemNotification(username + ': ' + messageType, preview);
             }
+            // Также можно обновить заголовок вкладки
             if (document.hidden) {
                 document.title = '🔔 Новое сообщение';
                 setTimeout(() => { if (!document.hidden) document.title = 'PyMessenger'; }, 2000);
             }
         }
+
         function requestNotificationPermission() {
             if (!('Notification' in window)) {
                 alert('Ваш браузер не поддерживает уведомления.');
@@ -209,23 +136,13 @@
                 }
             });
         }
+
+        // При загрузке проверяем, есть ли уже разрешение
         if ('Notification' in window && Notification.permission === 'granted') {
             notificationsEnabled = true;
         }
 
-        // ---------- Вспомогательные функции ----------
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-        function formatSize(bytes) {
-            if (bytes < 1024) return bytes + ' B';
-            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' КБ';
-            return (bytes / (1024 * 1024)).toFixed(1) + ' МБ';
-        }
-
-        // ---------- Сообщения ----------
+        // ----- Вспомогательные функции для сообщений -----
         function addSystemMessage(text) {
             const div = document.createElement('div');
             div.className = 'msg system';
@@ -233,6 +150,7 @@
             messagesDiv.appendChild(div);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
+
         function addTextMessage(username, text) {
             const div = document.createElement('div');
             div.className = 'msg';
@@ -241,6 +159,7 @@
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
             notifyIfHidden(username, 'сообщение', text.substring(0, 100));
         }
+
         function addVoiceMessage(username, audioBase64) {
             const div = document.createElement('div');
             div.className = 'msg';
@@ -253,6 +172,7 @@
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
             notifyIfHidden(username, 'голосовое', '🎤');
         }
+
         function addImageMessage(username, imageBase64, mime) {
             const div = document.createElement('div');
             div.className = 'msg';
@@ -265,6 +185,7 @@
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
             notifyIfHidden(username, 'фото', '📷');
         }
+
         function addFileMessage(username, filename, fileData, mime, size) {
             const div = document.createElement('div');
             div.className = 'msg';
@@ -280,35 +201,59 @@
             notifyIfHidden(username, 'файл', filename);
         }
 
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' КБ';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' МБ';
+        }
+
+        // ----- Текстовые сообщения -----
         function sendText() {
             const text = textInput.value.trim();
             if (!text) return;
-            socket.emit('text_message', { username: localUsername, text: text });
+            socket.emit('text_message', {
+                username: usernameInput.value || 'Аноним',
+                text: text
+            });
             textInput.value = '';
         }
+
         textInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') sendText();
         });
 
+        // ----- Голосовые сообщения (без изменений) -----
         async function toggleRecord() {
             if (!isRecording) {
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     mediaRecorder = new MediaRecorder(stream);
                     audioChunks = [];
+
                     mediaRecorder.ondataavailable = event => {
                         if (event.data.size > 0) audioChunks.push(event.data);
                     };
+
                     mediaRecorder.onstop = () => {
                         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                         const reader = new FileReader();
                         reader.onloadend = () => {
                             const base64 = reader.result.split(',')[1];
-                            socket.emit('voice_message', { username: localUsername, audio: base64 });
+                            socket.emit('voice_message', {
+                                username: usernameInput.value || 'Аноним',
+                                audio: base64
+                            });
                         };
                         reader.readAsDataURL(audioBlob);
                         stream.getTracks().forEach(track => track.stop());
                     };
+
                     mediaRecorder.start();
                     isRecording = true;
                     recordBtn.textContent = '⏹ Стоп';
@@ -326,11 +271,13 @@
             }
         }
 
-        // ---------- Фото и файлы ----------
+        // ----- Фото с сжатием (до 30 МБ исходного, сжатие до 5 МБ) -----
         const MAX_ORIGINAL_MB = 30;
         const MAX_FINAL_BASE64_MB = 5;
         const TARGET_IMAGE_PX = 1600;
+
         function selectImage() { imageInput.click(); }
+
         function sendImage(input) {
             const file = input.files[0];
             if (!file) return;
@@ -346,12 +293,17 @@
                 compressImage(file, (compressedFile) => readAndSendImage(compressedFile));
             }
         }
+
         function readAndSendImage(file) {
             const reader = new FileReader();
             reader.onload = () => {
                 const base64 = reader.result.split(',')[1];
                 const mime = file.type || 'image/jpeg';
-                socket.emit('image_message', { username: localUsername, image: base64, mime: mime });
+                socket.emit('image_message', {
+                    username: usernameInput.value || 'Аноним',
+                    image: base64,
+                    mime: mime
+                });
                 imageInput.value = '';
                 statusMsg.textContent = '';
             };
@@ -362,19 +314,21 @@
             };
             reader.readAsDataURL(file);
         }
+
         function compressImage(file, callback) {
             const img = new Image();
             const url = URL.createObjectURL(file);
             img.onload = () => {
                 URL.revokeObjectURL(url);
                 let { width, height } = img;
-                if (width > TARGET_IMAGE_PX || height > TARGET_IMAGE_PX) {
+                const maxDim = TARGET_IMAGE_PX;
+                if (width > maxDim || height > maxDim) {
                     if (width > height) {
-                        height = (height / width) * TARGET_IMAGE_PX;
-                        width = TARGET_IMAGE_PX;
+                        height = (height / width) * maxDim;
+                        width = maxDim;
                     } else {
-                        width = (width / height) * TARGET_IMAGE_PX;
-                        height = TARGET_IMAGE_PX;
+                        width = (width / height) * maxDim;
+                        height = maxDim;
                     }
                 }
                 const canvas = document.createElement('canvas');
@@ -382,6 +336,7 @@
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
+
                 const tryQuality = (quality) => {
                     canvas.toBlob((blob) => {
                         if (!blob) {
@@ -406,8 +361,11 @@
             img.src = url;
         }
 
+        // ----- Отправка любых файлов (до 10 МБ) -----
         const MAX_FILE_MB = 10;
+
         function selectFile() { fileInput.click(); }
+
         function sendFile(input) {
             const file = input.files[0];
             if (!file) return;
@@ -421,7 +379,7 @@
             reader.onload = () => {
                 const base64 = reader.result.split(',')[1];
                 socket.emit('file_message', {
-                    username: localUsername,
+                    username: usernameInput.value || 'Аноним',
                     filename: file.name,
                     file_data: base64,
                     mime: file.type || 'application/octet-stream',
@@ -438,234 +396,20 @@
             reader.readAsDataURL(file);
         }
 
-        // ---------- Регистрация и список онлайн ----------
-        usernameInput.addEventListener('change', () => {
-            localUsername = usernameInput.value.trim() || 'Гость';
-            socket.emit('register', { username: localUsername });
-        });
-        socket.on('connect', () => {
-            localUsername = usernameInput.value.trim() || 'Гость';
-            socket.emit('register', { username: localUsername });
-        });
-
-        socket.on('update_user_list', (users) => {
-            onlineUsersSpan.innerHTML = '';
-            users.forEach(user => {
-                if (user !== localUsername) {
-                    const span = document.createElement('span');
-                    span.textContent = user;
-                    span.onclick = () => initiateCall(user);
-                    onlineUsersSpan.appendChild(span);
-                }
-            });
-        });
-
-        // ---------- Звонки (только аудио) ----------
-        async function getMediaSafe() {
-            // Теперь запрашиваем ТОЛЬКО аудио, без видео
-            try {
-                return await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-            } catch (err) {
-                throw new Error('Нет доступа к микрофону.');
-            }
-        }
-
-        function showCallPanel() {
-            callPanel.classList.add('active');
-            callPanel.style.display = 'flex';
-            unmuteBtn.style.display = 'none';
-            remoteVideo.srcObject = null;
-        }
-
-        function hideCallPanel() {
-            callPanel.classList.remove('active');
-            callPanel.style.display = 'none';
-        }
-
-        function closeCall() {
-            if (peerConnection) {
-                peerConnection.close();
-                peerConnection = null;
-            }
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-                localStream = null;
-            }
-            localVideo.srcObject = null;
-            remoteVideo.srcObject = null;
-            hideCallPanel();
-            currentRemoteUser = null;
-            if (callTimer) {
-                clearTimeout(callTimer);
-                callTimer = null;
-            }
-        }
-
-        unmuteBtn.onclick = () => {
-            remoteVideo.muted = false;
-            unmuteBtn.style.display = 'none';
-        };
-
-        async function initiateCall(toUsername) {
-            currentRemoteUser = toUsername;
-            showCallPanel();
-            callStatus.textContent = `Звоним ${toUsername}...`;
-            acceptBtn.style.display = 'none';
-            rejectBtn.style.display = 'none';
-            hangupBtn.style.display = 'inline-block';
-            remoteVideo.muted = true;
-
-            try {
-                localStream = await getMediaSafe();
-                // Локальное видео скрыто, поэтому srcObject не назначаем
-                console.log('Локальный аудиопоток получен');
-
-                peerConnection = new RTCPeerConnection(pcConfig);
-                localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
-                peerConnection.onicecandidate = (event) => {
-                    if (event.candidate) {
-                        console.log('ICE кандидат:', event.candidate.type, event.candidate.protocol, event.candidate.address);
-                        socket.emit('ice_candidate', { to_username: toUsername, candidate: event.candidate });
-                    }
-                };
-
-                peerConnection.ontrack = (event) => {
-                    console.log('Получен удалённый трек:', event.track.kind);
-                    if (event.streams[0]) {
-                        remoteVideo.srcObject = event.streams[0];
-                        unmuteBtn.style.display = 'inline-block';
-                    }
-                };
-
-                const offer = await peerConnection.createOffer();
-                await peerConnection.setLocalDescription(offer);
-                socket.emit('call_user', { to_username: toUsername, from_username: localUsername, signal: offer });
-
-                callTimer = setTimeout(() => {
-                    if (currentRemoteUser) {
-                        alert('Звонок не был принят.');
-                        closeCall();
-                        socket.emit('hang_up', { to_username: currentRemoteUser });
-                    }
-                }, 120000);
-
-            } catch (err) {
-                console.error('Ошибка:', err);
-                alert('Ошибка: ' + err.message);
-                closeCall();
-            }
-        }
-
-        socket.on('incoming_call', async (data) => {
-            console.log('Входящий звонок от', data.from_username);
-            currentRemoteUser = data.from_username;
-            showCallPanel();
-            callStatus.textContent = `Входящий от ${data.from_username}`;
-            acceptBtn.style.display = 'inline-block';
-            rejectBtn.style.display = 'inline-block';
-            hangupBtn.style.display = 'none';
-            remoteVideo.muted = true;
-
-            acceptBtn.onclick = async () => {
-                if (callTimer) clearTimeout(callTimer);
-                acceptBtn.style.display = 'none';
-                rejectBtn.style.display = 'none';
-                hangupBtn.style.display = 'inline-block';
-                callStatus.textContent = 'Соединение...';
-
-                try {
-                    localStream = await getMediaSafe();
-                    peerConnection = new RTCPeerConnection(pcConfig);
-                    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
-                    peerConnection.onicecandidate = (event) => {
-                        if (event.candidate) {
-                            console.log('ICE кандидат (приём):', event.candidate.type, event.candidate.protocol);
-                            socket.emit('ice_candidate', { to_username: currentRemoteUser, candidate: event.candidate });
-                        }
-                    };
-                    peerConnection.ontrack = (event) => {
-                        console.log('Получен удалённый трек (приём):', event.track.kind);
-                        if (event.streams[0]) {
-                            remoteVideo.srcObject = event.streams[0];
-                            unmuteBtn.style.display = 'inline-block';
-                        }
-                    };
-
-                    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
-                    const answer = await peerConnection.createAnswer();
-                    await peerConnection.setLocalDescription(answer);
-                    socket.emit('call_accepted', { to_username: currentRemoteUser, signal: answer });
-                    callStatus.textContent = 'Разговор...';
-                } catch (err) {
-                    console.error('Ошибка:', err);
-                    alert('Ошибка: ' + err.message);
-                    closeCall();
-                    socket.emit('hang_up', { to_username: currentRemoteUser });
-                }
-            };
-
-            rejectBtn.onclick = () => {
-                if (callTimer) clearTimeout(callTimer);
-                socket.emit('call_rejected', { to_username: currentRemoteUser });
-                closeCall();
-            };
-
-            callTimer = setTimeout(() => {
-                if (currentRemoteUser) {
-                    alert('Входящий звонок пропущен.');
-                    closeCall();
-                }
-            }, 120000);
-        });
-
-        socket.on('call_accepted', async (data) => {
-            console.log('Звонок принят');
-            if (callTimer) clearTimeout(callTimer);
-            try {
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
-                callStatus.textContent = 'Разговор...';
-            } catch (e) {
-                console.error('Ошибка:', e);
-            }
-        });
-
-        socket.on('call_rejected', () => {
-            alert('Звонок отклонён');
-            closeCall();
-        });
-
-        socket.on('call_ended', () => {
-            alert('Звонок завершён');
-            closeCall();
-        });
-
-        socket.on('ice_candidate', async (data) => {
-            if (peerConnection) {
-                try {
-                    await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-                } catch (e) {
-                    console.warn('ICE candidate error:', e);
-                }
-            }
-        });
-
-        hangupBtn.onclick = () => {
-            socket.emit('hang_up', { to_username: currentRemoteUser });
-            closeCall();
-        };
-
-        // ---------- Обработчики сообщений ----------
+        // ----- Обработчики сокета (все сообщения вызывают add-функции, которые уже включают уведомления) -----
+        socket.on('connect', () => addSystemMessage('✅ Вы подключены'));
+        socket.on('user_joined', (data) => addSystemMessage(data.msg));
+        socket.on('user_left', (data) => addSystemMessage(data.msg));
         socket.on('text_message', (data) => addTextMessage(data.username, data.text));
         socket.on('voice_message', (data) => addVoiceMessage(data.username, data.audio));
         socket.on('image_message', (data) => addImageMessage(data.username, data.image, data.mime));
         socket.on('file_message', (data) => addFileMessage(data.username, data.filename, data.file_data, data.mime, data.size));
-        socket.on('user_joined', (data) => addSystemMessage(data.msg));
-        socket.on('user_left', (data) => addSystemMessage(data.msg));
 
+        // Восстанавливаем заголовок, когда вкладка снова активна
         document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) document.title = 'PyMessenger';
+            if (!document.hidden) {
+                document.title = 'PyMessenger';
+            }
         });
     </script>
 </body>
