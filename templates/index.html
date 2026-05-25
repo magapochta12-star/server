@@ -46,19 +46,14 @@
             -webkit-tap-highlight-color: transparent;
         }
         .header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 8px 15px;
-            background: var(--surface);
-            border-bottom: 1px solid var(--border);
-            box-shadow: var(--shadow);
-            z-index: 2;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 15px; background: var(--surface);
+            border-bottom: 1px solid var(--border); box-shadow: var(--shadow); z-index: 2;
         }
         .header h2 { font-size: 1.2em; font-weight: 600; }
         .theme-toggle {
-            background: none; border: none;
-            font-size: 1.3em; cursor: pointer; color: var(--text); padding: 5px;
+            background: none; border: none; font-size: 1.3em;
+            cursor: pointer; color: var(--text); padding: 5px;
         }
         .user-settings {
             display: flex; align-items: center; gap: 8px;
@@ -66,9 +61,9 @@
             border-bottom: 1px solid var(--border); font-size: 0.9em;
         }
         .user-settings input {
-            flex: 1; padding: 6px 10px;
-            border: 1px solid var(--border); border-radius: 6px;
-            background: var(--bg); color: var(--text); font-size: 0.9em; outline: none;
+            flex: 1; padding: 6px 10px; border: 1px solid var(--border);
+            border-radius: 6px; background: var(--bg); color: var(--text);
+            font-size: 0.9em; outline: none;
         }
         .user-settings button {
             background: var(--primary); color: var(--primary-text);
@@ -263,6 +258,7 @@
         let mediaRecorder, audioChunks = [], isRecording = false, notificationsEnabled = false;
         let localUsername = usernameInput.value.trim() || 'Гость';
         let typingTimer;
+        let clearStatusTimer = null; // таймер для автоочистки статуса
 
         // ---------- Тема ----------
         function applyTheme(theme) {
@@ -331,13 +327,32 @@
         function showProgress(show) {
             if (show) {
                 progressBar.classList.add('active');
-                // перезапускаем анимацию
-                progressBar.querySelector('.progress-fill').style.animation = 'none';
-                progressBar.offsetHeight; // reflow
-                progressBar.querySelector('.progress-fill').style.animation = 'fillBar 4s ease forwards';
+                const fill = progressBar.querySelector('.progress-fill');
+                fill.style.animation = 'none';
+                progressBar.offsetHeight;
+                fill.style.animation = 'fillBar 4s ease forwards';
             } else {
                 progressBar.classList.remove('active');
             }
+        }
+
+        // Очистка статуса и прогресса с таймером
+        function scheduleStatusClear(delay = 8000) {
+            if (clearStatusTimer) clearTimeout(clearStatusTimer);
+            clearStatusTimer = setTimeout(() => {
+                setStatusText(actionStatus, '');
+                showProgress(false);
+                clearStatusTimer = null;
+            }, delay);
+        }
+
+        function clearStatusImmediately() {
+            if (clearStatusTimer) {
+                clearTimeout(clearStatusTimer);
+                clearStatusTimer = null;
+            }
+            setStatusText(actionStatus, '');
+            showProgress(false);
         }
 
         // ---------- Сообщения ----------
@@ -416,7 +431,8 @@
                         reader.onloadend = () => {
                             const base64 = reader.result.split(',')[1];
                             socket.emit('voice_message', { username: localUsername, audio: base64 });
-                            // статус снимется при получении своего же voice_message
+                            // Автоочистка через 10 секунд, если не пришло подтверждение
+                            scheduleStatusClear(10000);
                         };
                         reader.readAsDataURL(blob);
                         stream.getTracks().forEach(t => t.stop());
@@ -440,7 +456,7 @@
         }
 
         // ---------- Фото и файлы ----------
-        const MAX_ORIGINAL_MB = 30, MAX_FINAL_BASE64_MB = 5, TARGET_IMAGE_PX = 1600;
+        const MAX_ORIGINAL_MB = 30, MAX_FINAL_BASE64_MB = 4, TARGET_IMAGE_PX = 1200; // немного уменьшил целевой размер и пиксели
         function selectImage() { document.getElementById('image-input').click(); }
         function sendImage(input) {
             const file = input.files[0];
@@ -452,10 +468,18 @@
             }
             socket.emit('action_status', { username: localUsername, action: 'sending_photo' });
             showProgress(true);
+            scheduleStatusClear(8000);  // тайм-аут 8 секунд
             if (file.size <= MAX_FINAL_BASE64_MB * 1024 * 1024) {
                 readAndSendImage(file);
             } else {
-                compressImage(file, (blob) => readAndSendImage(blob));
+                compressImage(file, (blob) => {
+                    if (!blob) {
+                        alert('Не удалось сжать фото');
+                        clearStatusImmediately();
+                        return;
+                    }
+                    readAndSendImage(blob);
+                });
             }
         }
         function readAndSendImage(file) {
@@ -464,7 +488,10 @@
                 const base64 = reader.result.split(',')[1];
                 const mime = file.type || 'image/jpeg';
                 socket.emit('image_message', { username: localUsername, image: base64, mime });
-                // статус и прогресс снимаются при получении своего же image_message
+            };
+            reader.onerror = () => {
+                alert('Ошибка чтения файла');
+                clearStatusImmediately();
             };
             reader.readAsDataURL(file);
         }
@@ -482,15 +509,27 @@
                 canvas.width = width; canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
+                // Пытаемся уместить в MAX_FINAL_BASE64_MB
                 const tryQuality = (q) => {
                     canvas.toBlob((blob) => {
-                        if (!blob) { canvas.toBlob(fb => callback(fb), 'image/jpeg', 0.5); return; }
+                        if (!blob) {
+                            // экстренный fallback
+                            canvas.toBlob(fb => callback(fb), 'image/jpeg', 0.4);
+                            return;
+                        }
                         const est = (blob.size * 1.37) / (1024 * 1024);
-                        if (est <= MAX_FINAL_BASE64_MB || q <= 0.3) callback(blob);
-                        else tryQuality(Math.max(0.3, q - 0.15));
+                        if (est <= MAX_FINAL_BASE64_MB || q <= 0.3) {
+                            callback(blob);
+                        } else {
+                            tryQuality(Math.max(0.3, q - 0.15));
+                        }
                     }, 'image/jpeg', q);
                 };
-                tryQuality(0.7);
+                tryQuality(0.6); // стартуем с более сильного сжатия
+            };
+            img.onerror = () => {
+                alert('Не удалось загрузить изображение для сжатия');
+                clearStatusImmediately();
             };
             img.src = url;
         }
@@ -506,6 +545,7 @@
             }
             socket.emit('action_status', { username: localUsername, action: 'sending_file' });
             showProgress(true);
+            scheduleStatusClear(8000);
             const reader = new FileReader();
             reader.onload = () => {
                 const base64 = reader.result.split(',')[1];
@@ -516,7 +556,10 @@
                     mime: file.type || 'application/octet-stream',
                     size: file.size
                 });
-                // статус и прогресс снимаются при получении своего же file_message
+            };
+            reader.onerror = () => {
+                alert('Ошибка чтения файла');
+                clearStatusImmediately();
             };
             reader.readAsDataURL(file);
         }
@@ -546,7 +589,7 @@
             messages.forEach(msg => addMessage('text', msg.username, msg.text));
         });
 
-        // ---------- Индикаторы и снятие статуса при получении своих сообщений ----------
+        // ---------- Индикаторы и очистка статуса при своих сообщениях ----------
         socket.on('typing', (data) => {
             setStatusText(typingIndicator, data.typing ? `${data.username} печатает...` : '');
         });
@@ -558,11 +601,10 @@
             else setStatusText(actionStatus, '');
         });
 
-        // При получении своего медиа сообщения – убираем статус и прогресс
+        // При получении своего медиа – убираем статус и прогресс мгновенно
         function clearMyStatus(username) {
             if (username === localUsername) {
-                setStatusText(actionStatus, '');
-                showProgress(false);
+                clearStatusImmediately();
             }
         }
 
