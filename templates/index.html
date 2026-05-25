@@ -172,20 +172,38 @@
                 setTimeout(() => { if (!document.hidden) document.title = 'PyMessenger'; }, 2000);
             }
         }
+
+        // Улучшенный запрос разрешения
         function requestNotificationPermission() {
             if (!('Notification' in window)) {
                 alert('Ваш браузер не поддерживает уведомления.');
                 return;
             }
+            if (Notification.permission === 'granted') {
+                notificationsEnabled = true;
+                alert('Уведомления уже включены!');
+                return;
+            }
+            if (Notification.permission === 'denied') {
+                alert('Уведомления заблокированы. Чтобы включить, откройте настройки браузера для этого сайта и разрешите уведомления вручную.');
+                return;
+            }
+            // В противном случае permission === 'default' — запрашиваем
             Notification.requestPermission().then(permission => {
                 if (permission === 'granted') {
                     notificationsEnabled = true;
                     alert('Уведомления включены!');
+                } else if (permission === 'denied') {
+                    alert('Вы отклонили запрос. Теперь уведомления заблокированы. Чтобы включить, зайдите в настройки браузера для этого сайта.');
                 } else {
-                    alert('Разрешение на уведомления не получено.');
+                    alert('Разрешение не получено. Попробуйте ещё раз.');
                 }
+            }).catch(err => {
+                console.error('Ошибка запроса уведомлений:', err);
+                alert('Не удалось запросить разрешение. Проверьте настройки браузера.');
             });
         }
+
         if ('Notification' in window && Notification.permission === 'granted') {
             notificationsEnabled = true;
         }
