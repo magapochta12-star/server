@@ -152,7 +152,17 @@
         let mediaRecorder, audioChunks = [], isRecording = false, notificationsEnabled = false;
         let localUsername = 'Гость';
         let localStream, peerConnection;
-        const pcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+        // НОВЫЙ pcConfig с TURN-сервером
+        const pcConfig = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                {
+                    urls: 'turn:openrelay.metered.ca:80',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
+                }
+            ]
+        };
         let currentRemoteUser = null;
         let callTimer = null;
 
@@ -445,7 +455,7 @@
             });
         });
 
-        // ---------- Звонки (autoplay muted + кнопка unmute) ----------
+        // ---------- Звонки (autoplay muted + кнопка unmute + TURN) ----------
         async function getMediaSafe() {
             try {
                 return await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
@@ -504,7 +514,7 @@
             acceptBtn.style.display = 'none';
             rejectBtn.style.display = 'none';
             hangupBtn.style.display = 'inline-block';
-            remoteVideo.muted = true; // важно для автовоспроизведения
+            remoteVideo.muted = true;
 
             try {
                 localStream = await getMediaSafe();
@@ -524,7 +534,6 @@
                     console.log('Получен удалённый трек:', event.track.kind);
                     if (event.streams[0]) {
                         remoteVideo.srcObject = event.streams[0];
-                        // Видео стартует автоматически (muted)
                         unmuteBtn.style.display = 'inline-block';
                     }
                 };
