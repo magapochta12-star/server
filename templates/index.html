@@ -2,17 +2,18 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>PyMessenger</title>
     <style>
+        * { box-sizing: border-box; }
         body { font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; padding: 10px; }
         #messages { border: 1px solid #ccc; height: 300px; overflow-y: scroll; padding: 10px; margin: 10px 0; }
         .msg { margin: 5px 0; }
         .username { font-weight: bold; color: #2c3e50; }
         .system { color: #666; font-style: italic; }
         #input-area { display: flex; gap: 5px; margin-bottom: 10px; flex-wrap: wrap; }
-        #text-input { flex: 1; min-width: 150px; padding: 8px; }
-        button { padding: 8px 12px; background: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        #text-input { flex: 1; min-width: 120px; padding: 8px; }
+        button { padding: 8px 12px; background: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
         #record-btn { background: #e74c3c; }
         #record-btn.recording { background: #c0392b; animation: pulse 1s infinite; }
         #image-btn { background: #27ae60; }
@@ -27,11 +28,65 @@
         .toast .toast-username { font-weight: bold; color: #3498db; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes fadeOut { to { opacity: 0; transform: translateX(100%); } }
-        /* Стили для звонков */
-        #call-panel { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: white; border: 2px solid #3498db; border-radius: 10px; padding: 15px; z-index: 10000; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
-        #call-panel video { width: 280px; height: auto; background: #000; border-radius: 5px; margin: 5px; }
+
+        /* Панель звонка – адаптивная */
+        #call-panel {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 10000;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+        }
+        #call-panel.active { display: flex; }
+        #call-status {
+            color: white;
+            font-size: 18px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .video-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            max-width: 600px;
+        }
+        .video-container video {
+            width: 45%;
+            min-width: 140px;
+            max-width: 250px;
+            background: #000;
+            border-radius: 8px;
+            border: 2px solid white;
+        }
+        .call-buttons {
+            margin-top: 15px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .call-buttons button {
+            font-size: 16px;
+            padding: 12px 20px;
+            border-radius: 30px;
+            min-width: 100px;
+        }
+        #hangup-btn { background: #e74c3c; }
+
+        /* Для очень маленьких экранов */
+        @media (max-width: 400px) {
+            .video-container video { width: 90%; min-width: 0; }
+            .call-buttons button { font-size: 14px; padding: 10px 15px; }
+        }
+
         #user-list { margin: 10px 0; }
-        #user-list span { cursor: pointer; padding: 4px 8px; background: #eee; border-radius: 4px; margin: 2px; display: inline-block; }
+        #user-list span { cursor: pointer; padding: 4px 8px; background: #eee; border-radius: 4px; margin: 2px; display: inline-block; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -56,14 +111,16 @@
 
     <!-- Панель звонка -->
     <div id="call-panel">
-        <h3>Звонок</h3>
         <div id="call-status"></div>
-        <video id="localVideo" autoplay muted playsinline></video>
-        <video id="remoteVideo" autoplay playsinline></video>
-        <br>
-        <button id="accept-btn" style="display:none; background: green;">Принять</button>
-        <button id="reject-btn" style="display:none; background: red;">Отклонить</button>
-        <button id="hangup-btn" style="display:none; background: gray;">Завершить</button>
+        <div class="video-container">
+            <video id="localVideo" autoplay muted playsinline></video>
+            <video id="remoteVideo" autoplay playsinline></video>
+        </div>
+        <div class="call-buttons">
+            <button id="accept-btn" style="display:none; background: green;">Принять</button>
+            <button id="reject-btn" style="display:none; background: red;">Отклонить</button>
+            <button id="hangup-btn" style="display:none;">Завершить</button>
+        </div>
     </div>
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
@@ -80,9 +137,20 @@
         const statusMsg = document.getElementById('status-msg');
         const toastContainer = document.getElementById('toast-container');
         const onlineUsersSpan = document.getElementById('online-users');
+        const callPanel = document.getElementById('call-panel');
+        const callStatus = document.getElementById('call-status');
+        const localVideo = document.getElementById('localVideo');
+        const remoteVideo = document.getElementById('remoteVideo');
+        const acceptBtn = document.getElementById('accept-btn');
+        const rejectBtn = document.getElementById('reject-btn');
+        const hangupBtn = document.getElementById('hangup-btn');
 
         let mediaRecorder, audioChunks = [], isRecording = false, notificationsEnabled = false;
         let localUsername = 'Гость';
+        let localStream, peerConnection;
+        const pcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+        let currentRemoteUser = null;
+        let callTimer = null;
 
         // ---------- Уведомления ----------
         function showToast(username, type, preview) {
@@ -193,14 +261,10 @@
             notifyIfHidden(username, 'файл', filename);
         }
 
-        // ---------- Отправка сообщений ----------
         function sendText() {
             const text = textInput.value.trim();
             if (!text) return;
-            socket.emit('text_message', {
-                username: localUsername,
-                text: text
-            });
+            socket.emit('text_message', { username: localUsername, text: text });
             textInput.value = '';
         }
         textInput.addEventListener('keypress', (e) => {
@@ -221,10 +285,7 @@
                         const reader = new FileReader();
                         reader.onloadend = () => {
                             const base64 = reader.result.split(',')[1];
-                            socket.emit('voice_message', {
-                                username: localUsername,
-                                audio: base64
-                            });
+                            socket.emit('voice_message', { username: localUsername, audio: base64 });
                         };
                         reader.readAsDataURL(audioBlob);
                         stream.getTracks().forEach(track => track.stop());
@@ -250,7 +311,6 @@
         const MAX_ORIGINAL_MB = 30;
         const MAX_FINAL_BASE64_MB = 5;
         const TARGET_IMAGE_PX = 1600;
-
         function selectImage() { imageInput.click(); }
         function sendImage(input) {
             const file = input.files[0];
@@ -272,11 +332,7 @@
             reader.onload = () => {
                 const base64 = reader.result.split(',')[1];
                 const mime = file.type || 'image/jpeg';
-                socket.emit('image_message', {
-                    username: localUsername,
-                    image: base64,
-                    mime: mime
-                });
+                socket.emit('image_message', { username: localUsername, image: base64, mime: mime });
                 imageInput.value = '';
                 statusMsg.textContent = '';
             };
@@ -388,61 +444,61 @@
         });
 
         // ---------- Звонки WebRTC ----------
-        let localStream, peerConnection;
-        const pcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
-        let currentRemoteUser = null;
+        async function getMediaSafe() {
+            // Сначала пытаемся получить и видео, и аудио
+            try {
+                return await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+            } catch (e) {
+                console.warn('Не удалось получить видео+аудио, пробуем только аудио:', e);
+                callStatus.textContent += ' (только аудио)';
+                try {
+                    return await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                } catch (err) {
+                    throw new Error('Нет доступа ни к камере, ни к микрофону. Проверьте разрешения браузера.');
+                }
+            }
+        }
+
+        function showCallPanel() {
+            callPanel.classList.add('active');
+            callPanel.style.display = 'flex';  // на всякий случай
+        }
+
+        function hideCallPanel() {
+            callPanel.classList.remove('active');
+            callPanel.style.display = 'none';
+        }
+
+        function closeCall() {
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+            localVideo.srcObject = null;
+            remoteVideo.srcObject = null;
+            hideCallPanel();
+            currentRemoteUser = null;
+            if (callTimer) {
+                clearTimeout(callTimer);
+                callTimer = null;
+            }
+        }
 
         async function initiateCall(toUsername) {
             currentRemoteUser = toUsername;
-            document.getElementById('call-panel').style.display = 'block';
-            document.getElementById('call-status').textContent = `Звоним ${toUsername}...`;
-            document.getElementById('hangup-btn').style.display = 'inline-block';
-            document.getElementById('accept-btn').style.display = 'none';
-            document.getElementById('reject-btn').style.display = 'none';
+            showCallPanel();
+            callStatus.textContent = `Звоним ${toUsername}...`;
+            acceptBtn.style.display = 'none';
+            rejectBtn.style.display = 'none';
+            hangupBtn.style.display = 'inline-block';
 
-            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-            document.getElementById('localVideo').srcObject = localStream;
-
-            peerConnection = new RTCPeerConnection(pcConfig);
-            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
-            peerConnection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    socket.emit('ice_candidate', {
-                        to_username: toUsername,
-                        candidate: event.candidate
-                    });
-                }
-            };
-            peerConnection.ontrack = (event) => {
-                document.getElementById('remoteVideo').srcObject = event.streams[0];
-            };
-
-            const offer = await peerConnection.createOffer();
-            await peerConnection.setLocalDescription(offer);
-            socket.emit('call_user', {
-                to_username: toUsername,
-                from_username: localUsername,
-                signal: offer
-            });
-        }
-
-        socket.on('incoming_call', async (data) => {
-            currentRemoteUser = data.from_username;
-            document.getElementById('call-panel').style.display = 'block';
-            document.getElementById('call-status').textContent = `Входящий от ${data.from_username}`;
-            document.getElementById('accept-btn').style.display = 'inline-block';
-            document.getElementById('reject-btn').style.display = 'inline-block';
-            document.getElementById('hangup-btn').style.display = 'none';
-
-            document.getElementById('accept-btn').onclick = async () => {
-                document.getElementById('call-status').textContent = 'Соединение...';
-                document.getElementById('accept-btn').style.display = 'none';
-                document.getElementById('reject-btn').style.display = 'none';
-                document.getElementById('hangup-btn').style.display = 'inline-block';
-
-                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-                document.getElementById('localVideo').srcObject = localStream;
+            try {
+                localStream = await getMediaSafe();
+                localVideo.srcObject = localStream;
 
                 peerConnection = new RTCPeerConnection(pcConfig);
                 localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
@@ -450,33 +506,104 @@
                 peerConnection.onicecandidate = (event) => {
                     if (event.candidate) {
                         socket.emit('ice_candidate', {
-                            to_username: currentRemoteUser,
+                            to_username: toUsername,
                             candidate: event.candidate
                         });
                     }
                 };
                 peerConnection.ontrack = (event) => {
-                    document.getElementById('remoteVideo').srcObject = event.streams[0];
+                    remoteVideo.srcObject = event.streams[0];
                 };
 
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
-                const answer = await peerConnection.createAnswer();
-                await peerConnection.setLocalDescription(answer);
-                socket.emit('call_accepted', {
-                    to_username: currentRemoteUser,
-                    signal: answer
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                socket.emit('call_user', {
+                    to_username: toUsername,
+                    from_username: localUsername,
+                    signal: offer
                 });
+
+                // Таймер на случай, если звонок не будет принят за 60 секунд
+                callTimer = setTimeout(() => {
+                    if (currentRemoteUser) {
+                        alert('Звонок не был принят.');
+                        closeCall();
+                        socket.emit('hang_up', { to_username: currentRemoteUser });
+                    }
+                }, 60000);
+
+            } catch (err) {
+                alert('Ошибка при начале звонка: ' + err.message);
+                closeCall();
+            }
+        }
+
+        socket.on('incoming_call', async (data) => {
+            currentRemoteUser = data.from_username;
+            showCallPanel();
+            callStatus.textContent = `Входящий от ${data.from_username}`;
+            acceptBtn.style.display = 'inline-block';
+            rejectBtn.style.display = 'inline-block';
+            hangupBtn.style.display = 'none';
+
+            acceptBtn.onclick = async () => {
+                callStatus.textContent = 'Соединение...';
+                acceptBtn.style.display = 'none';
+                rejectBtn.style.display = 'none';
+                hangupBtn.style.display = 'inline-block';
+
+                try {
+                    localStream = await getMediaSafe();
+                    localVideo.srcObject = localStream;
+
+                    peerConnection = new RTCPeerConnection(pcConfig);
+                    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+                    peerConnection.onicecandidate = (event) => {
+                        if (event.candidate) {
+                            socket.emit('ice_candidate', {
+                                to_username: currentRemoteUser,
+                                candidate: event.candidate
+                            });
+                        }
+                    };
+                    peerConnection.ontrack = (event) => {
+                        remoteVideo.srcObject = event.streams[0];
+                    };
+
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
+                    const answer = await peerConnection.createAnswer();
+                    await peerConnection.setLocalDescription(answer);
+                    socket.emit('call_accepted', {
+                        to_username: currentRemoteUser,
+                        signal: answer
+                    });
+                    callStatus.textContent = 'Разговор...';
+                } catch (err) {
+                    alert('Ошибка при принятии звонка: ' + err.message);
+                    closeCall();
+                    socket.emit('hang_up', { to_username: currentRemoteUser });
+                }
             };
 
-            document.getElementById('reject-btn').onclick = () => {
+            rejectBtn.onclick = () => {
                 socket.emit('call_rejected', { to_username: currentRemoteUser });
                 closeCall();
             };
+
+            // Если не ответят в течение 60 секунд
+            callTimer = setTimeout(() => {
+                if (currentRemoteUser) {
+                    alert('Входящий звонок пропущен.');
+                    closeCall();
+                }
+            }, 60000);
         });
 
         socket.on('call_accepted', async (data) => {
+            if (callTimer) clearTimeout(callTimer);
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
-            document.getElementById('call-status').textContent = 'Разговор...';
+            callStatus.textContent = 'Разговор...';
         });
 
         socket.on('call_rejected', () => {
@@ -491,29 +618,18 @@
 
         socket.on('ice_candidate', async (data) => {
             if (peerConnection) {
-                await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                try {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                } catch (e) {
+                    console.warn('Ошибка добавления ICE кандидата:', e);
+                }
             }
         });
 
-        document.getElementById('hangup-btn').onclick = () => {
+        hangupBtn.onclick = () => {
             socket.emit('hang_up', { to_username: currentRemoteUser });
             closeCall();
         };
-
-        function closeCall() {
-            if (peerConnection) {
-                peerConnection.close();
-                peerConnection = null;
-            }
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-                localStream = null;
-            }
-            document.getElementById('call-panel').style.display = 'none';
-            document.getElementById('localVideo').srcObject = null;
-            document.getElementById('remoteVideo').srcObject = null;
-            currentRemoteUser = null;
-        }
 
         // ---------- Обработчики сообщений ----------
         socket.on('text_message', (data) => addTextMessage(data.username, data.text));
