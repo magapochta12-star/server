@@ -445,7 +445,7 @@
             });
         });
 
-        // ---------- Звонки WebRTC с управлением звуком ----------
+        // ---------- Звонки WebRTC (без принудительного play) ----------
         async function getMediaSafe() {
             try {
                 return await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
@@ -490,11 +490,12 @@
             }
         }
 
-        // Обработчик кнопки "Включить звук"
+        // Кнопка "Включить звук"
         unmuteBtn.onclick = () => {
             if (remoteVideo) {
                 remoteVideo.muted = false;
-                remoteVideo.play().catch(e => console.warn('Ошибка включения звука:', e));
+                // Если видео не играет из-за политики, попробуем запустить
+                remoteVideo.play().catch(e => console.warn('Не удалось включить звук:', e));
             }
             unmuteBtn.style.display = 'none';
         };
@@ -507,6 +508,9 @@
             rejectBtn.style.display = 'none';
             hangupBtn.style.display = 'inline-block';
             unmuteBtn.style.display = 'none';
+
+            // Гарантируем muted для автовоспроизведения
+            remoteVideo.muted = true;
 
             try {
                 localStream = await getMediaSafe();
@@ -534,21 +538,9 @@
                     console.log('Получен удалённый трек:', event.track.kind);
                     if (event.streams[0]) {
                         remoteVideo.srcObject = event.streams[0];
-                        // Запускаем видео в muted-режиме для гарантированного автовоспроизведения
-                        remoteVideo.muted = true;
-                        remoteVideo.play().then(() => {
-                            console.log('Удалённое видео воспроизводится (muted)');
-                            // Пробуем включить звук автоматически
-                            remoteVideo.muted = false;
-                            // Если после снятия mute браузер заблокирует звук, покажем кнопку
-                            remoteVideo.play().catch(() => {
-                                unmuteBtn.style.display = 'inline-block';
-                            });
-                        }).catch(e => {
-                            console.warn('Автовоспроизведение заблокировано:', e);
-                            // Видео всё равно может показываться без звука, покажем кнопку
-                            unmuteBtn.style.display = 'inline-block';
-                        });
+                        // Не вызываем play(), autoplay справится
+                        // Показываем кнопку разблокировки звука
+                        unmuteBtn.style.display = 'inline-block';
                     }
                 };
 
@@ -585,6 +577,7 @@
             rejectBtn.style.display = 'inline-block';
             hangupBtn.style.display = 'none';
             unmuteBtn.style.display = 'none';
+            remoteVideo.muted = true;
 
             acceptBtn.onclick = async () => {
                 console.log('Принимаем звонок');
@@ -619,16 +612,7 @@
                         console.log('Получен удалённый трек (приём):', event.track.kind);
                         if (event.streams[0]) {
                             remoteVideo.srcObject = event.streams[0];
-                            remoteVideo.muted = true;
-                            remoteVideo.play().then(() => {
-                                console.log('Удалённое видео воспроизводится (muted)');
-                                remoteVideo.muted = false;
-                                remoteVideo.play().catch(() => {
-                                    unmuteBtn.style.display = 'inline-block';
-                                });
-                            }).catch(() => {
-                                unmuteBtn.style.display = 'inline-block';
-                            });
+                            unmuteBtn.style.display = 'inline-block';
                         }
                     };
 
