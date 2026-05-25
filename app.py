@@ -9,7 +9,7 @@ socketio = SocketIO(app, async_mode='threading', cors_allowed_origins='*')
 voice_messages = []
 image_messages = []
 file_messages = []
-text_messages = []        # ← теперь храним и текстовые
+text_messages = []
 
 connected_users = {}
 
@@ -20,7 +20,6 @@ def index():
 @socketio.on('connect')
 def handle_connect():
     emit('user_joined', {'msg': 'Кто-то присоединился'}, broadcast=True)
-    # отправляем историю всех типов
     for vm in voice_messages[-10:]:
         emit('voice_message', vm)
     for im in image_messages[-10:]:
@@ -28,7 +27,7 @@ def handle_connect():
     for fm in file_messages[-10:]:
         emit('file_message', fm)
     if text_messages:
-        emit('text_history', text_messages[-50:])   # массив текстовых сообщений
+        emit('text_history', text_messages[-50:])
 
 @socketio.on('register')
 def handle_register(data):
@@ -94,10 +93,11 @@ def handle_typing(data):
 
 @socketio.on('action_status')
 def handle_action_status(data):
+    # Теперь получают все, включая отправителя — чтобы статус гарантированно очищался
     emit('action_status', {
         'username': data.get('username', 'Аноним'),
         'action': data.get('action', '')
-    }, broadcast=True, include_self=False)
+    }, broadcast=True)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
