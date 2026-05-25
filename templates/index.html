@@ -6,207 +6,303 @@
     <title>PyMessenger</title>
     <style>
         :root {
-            --bg: #ffffff;
-            --text: #2c3e50;
-            --msg-bg: #ffffff;
-            --system-text: #666;
-            --border: #ccc;
-            --btn-bg: #3498db;
-            --btn-text: white;
-            --user-bg: #eee;
+            --bg: #e8ecf0;
+            --surface: #ffffff;
+            --primary: #2a9d8f;
+            --primary-text: #ffffff;
+            --text: #1c1e21;
+            --secondary-text: #65676b;
+            --border: #d0d5dd;
+            --my-msg: #dcf8c6;
+            --other-msg: #ffffff;
+            --shadow: 0 1px 2px rgba(0,0,0,0.1);
+            --radius: 12px;
+            --transition: 0.2s ease;
         }
         .dark-theme {
-            --bg: #1e1e1e;
-            --text: #ddd;
-            --msg-bg: #2a2a2a;
-            --system-text: #aaa;
-            --border: #444;
-            --btn-bg: #2980b9;
-            --btn-text: white;
-            --user-bg: #333;
+            --bg: #1a1a2e;
+            --surface: #16213e;
+            --primary: #0f3460;
+            --primary-text: #e0e0e0;
+            --text: #e0e0e0;
+            --secondary-text: #a0a0a0;
+            --border: #2a2a4a;
+            --my-msg: #2a5a4a;
+            --other-msg: #1e2a3a;
+            --shadow: 0 1px 4px rgba(0,0,0,0.4);
         }
-        * { box-sizing: border-box; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             max-width: 700px;
             margin: 0 auto;
-            padding: 10px;
-            background-color: var(--bg);
-            color: var(--text);
-            transition: background 0.3s, color 0.3s;
-        }
-        #messages {
-            border: 1px solid var(--border);
-            height: 300px;
-            overflow-y: scroll;
-            padding: 10px;
-            margin: 10px 0;
-            background: var(--msg-bg);
-            border-radius: 5px;
-        }
-        .msg {
-            margin: 5px 0;
+            height: 100vh;
             display: flex;
-            flex-wrap: wrap;
-            align-items: baseline;
-            gap: 0.3em;
+            flex-direction: column;
+            background: var(--bg);
+            color: var(--text);
+            transition: background var(--transition), color var(--transition);
+            overflow: hidden;
         }
-        .username { font-weight: bold; color: #3498db; }
-        .system { color: var(--system-text); font-style: italic; }
-        .time {
-            font-size: 0.8em;
-            color: var(--system-text);
-            margin-left: auto;
-            white-space: nowrap;
+        /* Шапка */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 15px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            z-index: 2;
         }
-        #input-area { display: flex; gap: 5px; margin-bottom: 10px; flex-wrap: wrap; }
-        #text-input { flex: 1; min-width: 120px; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--msg-bg); color: var(--text); }
-        button {
-            padding: 8px 12px;
-            background: var(--btn-bg);
-            color: var(--btn-text);
+        .header h2 {
+            font-size: 1.3em;
+            font-weight: 600;
+        }
+        .theme-toggle {
+            background: none;
             border: none;
-            border-radius: 4px;
+            font-size: 1.4em;
             cursor: pointer;
-            font-size: 14px;
+            color: var(--text);
         }
-        #record-btn { background: #e74c3c; }
-        #record-btn.recording { background: #c0392b; animation: pulse 1s infinite; }
-        #image-btn { background: #27ae60; }
-        #file-btn { background: #f39c12; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-        audio, img { display: block; margin-top: 5px; max-width: 100%; }
-        img { max-height: 300px; border-radius: 5px; }
-        .file-link { display: inline-block; margin-top: 5px; padding: 5px 10px; background: #ecf0f1; border-radius: 4px; text-decoration: none; color: #2c3e50; }
-        #status-msg { font-size: 0.9em; color: var(--system-text); margin-left: 5px; }
-        #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
-        .toast { background: #333; color: #fff; padding: 12px 16px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); min-width: 200px; max-width: 300px; font-size: 14px; animation: slideIn 0.3s ease, fadeOut 0.5s 4.5s forwards; }
-        .toast .toast-username { font-weight: bold; color: #3498db; }
-        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-        @keyframes fadeOut { to { opacity: 0; transform: translateX(100%); } }
-        #user-list { margin: 10px 0; }
-        #user-list span { cursor: pointer; padding: 4px 8px; background: var(--user-bg); border-radius: 4px; margin: 2px; display: inline-block; font-size: 14px; }
-        #typing-indicator { font-style: italic; color: var(--system-text); margin: 5px 0; height: 1.2em; }
-        .theme-toggle { cursor: pointer; font-size: 1.2em; background: none; border: none; }
+        /* Основная область чата */
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background: var(--bg);
+            scroll-behavior: smooth;
+        }
+        /* Сообщения */
+        .message {
+            display: flex;
+            flex-direction: column;
+            max-width: 80%;
+            padding: 8px 12px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            animation: fadeInUp 0.3s ease;
+            word-wrap: break-word;
+            position: relative;
+        }
+        .message.my {
+            align-self: flex-end;
+            background: var(--my-msg);
+            border-bottom-right-radius: 4px;
+        }
+        .message.other {
+            align-self: flex-start;
+            background: var(--other-msg);
+            border-bottom-left-radius: 4px;
+        }
+        .message .sender {
+            font-weight: 600;
+            font-size: 0.85em;
+            color: var(--primary);
+            margin-bottom: 2px;
+        }
+        .message .text {
+            font-size: 0.95em;
+            line-height: 1.4;
+        }
+        .message .time {
+            font-size: 0.7em;
+            color: var(--secondary-text);
+            align-self: flex-end;
+            margin-top: 2px;
+        }
+        .message.system {
+            align-self: center;
+            background: transparent;
+            box-shadow: none;
+            color: var(--secondary-text);
+            font-style: italic;
+            font-size: 0.85em;
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        /* Вложения */
+        .message img, .message audio {
+            max-width: 100%;
+            border-radius: 8px;
+            margin-top: 5px;
+        }
+        .file-link {
+            display: inline-block;
+            margin-top: 5px;
+            padding: 6px 10px;
+            background: var(--primary);
+            color: var(--primary-text);
+            border-radius: 20px;
+            text-decoration: none;
+            font-size: 0.85em;
+        }
+        /* Панель ввода */
+        .input-panel {
+            background: var(--surface);
+            padding: 10px 15px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            box-shadow: 0 -1px 4px rgba(0,0,0,0.05);
+        }
+        #text-input {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid var(--border);
+            border-radius: 25px;
+            outline: none;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 0.95em;
+        }
+        .input-panel button {
+            background: var(--primary);
+            color: var(--primary-text);
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 1.2em;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
+            box-shadow: var(--shadow);
+        }
+        .input-panel button:active {
+            transform: scale(0.95);
+        }
+        .input-panel button.record {
+            background: #e74c3c;
+        }
+        /* Индикаторы */
+        .action-status {
+            font-size: 0.85em;
+            color: var(--secondary-text);
+            font-style: italic;
+            padding: 2px 10px;
+            text-align: center;
+            animation: fadeInDown 0.3s;
+        }
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        #typing-indicator {
+            height: 1.2em;
+            font-size: 0.85em;
+            color: var(--secondary-text);
+            padding-left: 15px;
+            margin-bottom: 5px;
+        }
+        /* Пользователи онлайн */
+        #user-list {
+            font-size: 0.9em;
+            padding: 5px 15px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+            overflow-x: auto;
+        }
+        #user-list span {
+            background: var(--primary);
+            color: var(--primary-text);
+            padding: 2px 10px;
+            border-radius: 15px;
+            margin: 0 3px;
+            font-size: 0.8em;
+        }
+        /* Адаптация для мобильных */
+        @media (max-width: 500px) {
+            .message { max-width: 90%; }
+            .input-panel button { width: 36px; height: 36px; font-size: 1em; }
+        }
     </style>
 </head>
 <body>
-    <div style="display: flex; justify-content: space-between; align-items: center;">
+    <div class="header">
         <h2>PyMessenger</h2>
         <button class="theme-toggle" id="theme-toggle">🌙</button>
     </div>
-    <div>
-        <input type="text" id="username" placeholder="Ваше имя" value="Гость">
-        <button onclick="requestNotificationPermission()" style="font-size:12px; padding:4px 8px;">🔔 Уведомления</button>
+    <div id="user-list"><span id="online-users"></span></div>
+    <div class="chat-container" id="chat-container">
+        <div id="typing-indicator"></div>
+        <div id="action-status" class="action-status"></div>
+        <div id="messages"></div>
     </div>
-    <div id="user-list"><b>Онлайн:</b> <span id="online-users"></span></div>
-    <div id="typing-indicator"></div>
-    <div id="messages"></div>
-    <div id="input-area">
-        <input type="text" id="text-input" placeholder="Введите сообщение...">
-        <button onclick="sendText()">Отправить</button>
-        <button id="record-btn" onclick="toggleRecord()">🎤 Запись</button>
-        <button id="image-btn" onclick="selectImage()">📷 Фото</button>
-        <button id="file-btn" onclick="selectFile()">📎 Файл</button>
+    <div class="input-panel">
+        <input type="text" id="text-input" placeholder="Сообщение...">
+        <button onclick="sendText()" title="Отправить">➤</button>
+        <button class="record" id="record-btn" onclick="toggleRecord()">🎤</button>
+        <button onclick="selectImage()">🖼️</button>
+        <button onclick="selectFile()">📎</button>
         <input type="file" id="image-input" accept="image/*" style="display:none;" onchange="sendImage(this)">
         <input type="file" id="file-input" style="display:none;" onchange="sendFile(this)">
-        <span id="status-msg"></span>
     </div>
-    <div id="toast-container"></div>
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
         const socket = io();
+        const chatContainer = document.getElementById('chat-container');
         const messagesDiv = document.getElementById('messages');
         const textInput = document.getElementById('text-input');
         const usernameInput = document.getElementById('username');
         const recordBtn = document.getElementById('record-btn');
-        const imageBtn = document.getElementById('image-btn');
-        const fileBtn = document.getElementById('file-btn');
-        const imageInput = document.getElementById('image-input');
-        const fileInput = document.getElementById('file-input');
-        const statusMsg = document.getElementById('status-msg');
-        const toastContainer = document.getElementById('toast-container');
-        const onlineUsersSpan = document.getElementById('online-users');
         const typingIndicator = document.getElementById('typing-indicator');
+        const actionStatus = document.getElementById('action-status');
+        const onlineUsersSpan = document.getElementById('online-users');
         const themeToggle = document.getElementById('theme-toggle');
 
         let mediaRecorder, audioChunks = [], isRecording = false, notificationsEnabled = false;
         let localUsername = 'Гость';
         let typingTimer;
 
-        // ---------- Тёмная тема ----------
+        // ---------- Тема ----------
         function applyTheme(theme) {
             document.body.classList.toggle('dark-theme', theme === 'dark');
             themeToggle.textContent = theme === 'dark' ? '☀️' : '🌙';
             localStorage.setItem('theme', theme);
         }
-        themeToggle.onclick = () => {
-            const newTheme = document.body.classList.contains('dark-theme') ? 'light' : 'dark';
-            applyTheme(newTheme);
-        };
-        const savedTheme = localStorage.getItem('theme') || 'light';
-        applyTheme(savedTheme);
+        themeToggle.onclick = () => applyTheme(document.body.classList.contains('dark-theme') ? 'light' : 'dark');
+        applyTheme(localStorage.getItem('theme') || 'light');
 
         // ---------- Уведомления ----------
-        function showToast(username, type, preview) {
-            const toast = document.createElement('div');
-            toast.className = 'toast';
-            toast.innerHTML = `<span class="toast-username">${escapeHtml(username)}</span> ${type}: ${escapeHtml(preview)}`;
-            toastContainer.appendChild(toast);
-            setTimeout(() => { if (toast.parentNode) toast.remove(); }, 5000);
-        }
-        function showSystemNotification(title, body) {
-            if (!notificationsEnabled || !('Notification' in window)) return;
-            if (Notification.permission === 'granted') {
-                try { new Notification(title, { body }); } catch (e) {}
-            }
-        }
-        function notifyIfHidden(username, messageType, preview) {
-            if (document.hidden) {
-                showToast(username, messageType, preview);
-                showSystemNotification(username + ': ' + messageType, preview);
+        function notifyIfHidden(username, type, preview) {
+            if (document.hidden && notificationsEnabled && 'Notification' in window && Notification.permission === 'granted') {
+                new Notification(`${username}: ${type}`, { body: preview.substring(0, 100) });
             }
             if (document.hidden) {
                 document.title = '🔔 Новое сообщение';
                 setTimeout(() => { if (!document.hidden) document.title = 'PyMessenger'; }, 2000);
             }
         }
-
-        // Улучшенный запрос разрешения
         function requestNotificationPermission() {
-            if (!('Notification' in window)) {
-                alert('Ваш браузер не поддерживает уведомления.');
-                return;
-            }
+            if (!('Notification' in window)) return alert('Браузер не поддерживает уведомления');
             if (Notification.permission === 'granted') {
                 notificationsEnabled = true;
-                alert('Уведомления уже включены!');
+                alert('Уведомления уже включены');
                 return;
             }
             if (Notification.permission === 'denied') {
-                alert('Уведомления заблокированы. Чтобы включить, откройте настройки браузера для этого сайта и разрешите уведомления вручную.');
+                alert('Уведомления заблокированы. Разблокируйте в настройках браузера для этого сайта.');
                 return;
             }
-            // В противном случае permission === 'default' — запрашиваем
-            Notification.requestPermission().then(permission => {
-                if (permission === 'granted') {
-                    notificationsEnabled = true;
-                    alert('Уведомления включены!');
-                } else if (permission === 'denied') {
-                    alert('Вы отклонили запрос. Теперь уведомления заблокированы. Чтобы включить, зайдите в настройки браузера для этого сайта.');
-                } else {
-                    alert('Разрешение не получено. Попробуйте ещё раз.');
-                }
-            }).catch(err => {
-                console.error('Ошибка запроса уведомлений:', err);
-                alert('Не удалось запросить разрешение. Проверьте настройки браузера.');
+            Notification.requestPermission().then(p => {
+                notificationsEnabled = p === 'granted';
+                if (p === 'granted') alert('Уведомления включены!');
+                else if (p === 'denied') alert('Запрос отклонён.');
             });
         }
-
-        if ('Notification' in window && Notification.permission === 'granted') {
-            notificationsEnabled = true;
-        }
+        if ('Notification' in window && Notification.permission === 'granted') notificationsEnabled = true;
 
         // ---------- Вспомогательные функции ----------
         function escapeHtml(text) {
@@ -221,55 +317,57 @@
         }
         function getTime() {
             const now = new Date();
-            return now.getHours().toString().padStart(2, '0') + ':' +
-                   now.getMinutes().toString().padStart(2, '0') + ':' +
-                   now.getSeconds().toString().padStart(2, '0');
+            return now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
         }
 
-        // ---------- Добавление сообщений с временем ----------
-        function appendMessage(type, username, content, extra) {
+        // ---------- Сообщения ----------
+        function addMessage(type, username, content, extra) {
             const div = document.createElement('div');
-            div.className = 'msg';
-            const time = getTime();
+            div.className = 'message';
+            const isMy = (username === localUsername);
             if (type === 'system') {
                 div.classList.add('system');
-                div.innerHTML = `${content} <span class="time">${time}</span>`;
-            } else if (type === 'text') {
-                div.innerHTML = `<span class="username">${escapeHtml(username)}:</span> ${escapeHtml(content)} <span class="time">${time}</span>`;
-                notifyIfHidden(username, 'сообщение', content.substring(0, 100));
-            } else if (type === 'voice') {
-                div.innerHTML = `<span class="username">${escapeHtml(username)}:</span> голосовое сообщение <span class="time">${time}</span><br>`;
-                const audio = document.createElement('audio');
-                audio.controls = true;
-                audio.src = "data:audio/webm;base64," + content;
-                div.appendChild(audio);
-                notifyIfHidden(username, 'голосовое', '🎤');
-            } else if (type === 'image') {
-                div.innerHTML = `<span class="username">${escapeHtml(username)}:</span> фото <span class="time">${time}</span><br>`;
-                const img = document.createElement('img');
-                img.src = `data:${extra.mime};base64,${content}`;
-                img.onload = () => { messagesDiv.scrollTop = messagesDiv.scrollHeight; };
-                div.appendChild(img);
-                notifyIfHidden(username, 'фото', '📷');
-            } else if (type === 'file') {
-                div.innerHTML = `<span class="username">${escapeHtml(username)}:</span> файл: ${escapeHtml(extra.filename)} (${formatSize(extra.size)}) <span class="time">${time}</span><br>`;
-                const a = document.createElement('a');
-                a.href = `data:${extra.mime};base64,${content}`;
-                a.download = extra.filename;
-                a.className = 'file-link';
-                a.textContent = '📥 Скачать';
-                div.appendChild(a);
-                notifyIfHidden(username, 'файл', extra.filename);
+                div.innerHTML = `${content} <span class="time">${getTime()}</span>`;
+            } else {
+                div.classList.add(isMy ? 'my' : 'other');
+                if (!isMy && username) div.innerHTML += `<span class="sender">${escapeHtml(username)}</span>`;
+                if (type === 'text') {
+                    div.innerHTML += `<span class="text">${escapeHtml(content)}</span>`;
+                    notifyIfHidden(username, 'сообщение', content.substring(0, 100));
+                } else if (type === 'voice') {
+                    div.innerHTML += '🎤 Голосовое сообщение';
+                    const audio = document.createElement('audio');
+                    audio.controls = true;
+                    audio.src = "data:audio/webm;base64," + content;
+                    div.appendChild(audio);
+                    notifyIfHidden(username, 'голосовое', '');
+                } else if (type === 'image') {
+                    div.innerHTML += '📷 Фото';
+                    const img = document.createElement('img');
+                    img.src = `data:${extra.mime};base64,${content}`;
+                    div.appendChild(img);
+                    notifyIfHidden(username, 'фото', '');
+                } else if (type === 'file') {
+                    div.innerHTML += `📎 ${escapeHtml(extra.filename)} (${formatSize(extra.size)})`;
+                    const a = document.createElement('a');
+                    a.href = `data:${extra.mime};base64,${content}`;
+                    a.download = extra.filename;
+                    a.className = 'file-link';
+                    a.textContent = 'Скачать';
+                    div.appendChild(a);
+                    notifyIfHidden(username, 'файл', extra.filename);
+                }
+                div.innerHTML += `<span class="time">${getTime()}</span>`;
             }
             messagesDiv.appendChild(div);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            chatContainer.scrollTop = chatContainer.scrollHeight;
         }
 
-        // ---------- Отправка текста и индикатор печати ----------
+        // ---------- Отправка сообщений ----------
         function sendText() {
             const text = textInput.value.trim();
             if (!text) return;
-            socket.emit('text_message', { username: localUsername, text: text });
+            socket.emit('text_message', { username: localUsername, text });
             socket.emit('typing', { username: localUsername, typing: false });
             textInput.value = '';
         }
@@ -278,41 +376,38 @@
             const typing = textInput.value.trim().length > 0;
             socket.emit('typing', { username: localUsername, typing });
             clearTimeout(typingTimer);
-            if (typing) {
-                typingTimer = setTimeout(() => {
-                    socket.emit('typing', { username: localUsername, typing: false });
-                }, 3000);
-            }
+            if (typing) typingTimer = setTimeout(() => socket.emit('typing', { username: localUsername, typing: false }), 3000);
         });
-
         textInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') sendText();
         });
 
-        // ---------- Голосовые сообщения ----------
+        // ---------- Голосовые сообщения с индикатором ----------
         async function toggleRecord() {
             if (!isRecording) {
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     mediaRecorder = new MediaRecorder(stream);
                     audioChunks = [];
-                    mediaRecorder.ondataavailable = event => {
-                        if (event.data.size > 0) audioChunks.push(event.data);
-                    };
+                    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
                     mediaRecorder.onstop = () => {
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        const blob = new Blob(audioChunks, { type: 'audio/webm' });
                         const reader = new FileReader();
                         reader.onloadend = () => {
                             const base64 = reader.result.split(',')[1];
                             socket.emit('voice_message', { username: localUsername, audio: base64 });
+                            // Окончание записи – убираем статус
+                            socket.emit('action_status', { username: localUsername, action: '' });
                         };
-                        reader.readAsDataURL(audioBlob);
-                        stream.getTracks().forEach(track => track.stop());
+                        reader.readAsDataURL(blob);
+                        stream.getTracks().forEach(t => t.stop());
                     };
                     mediaRecorder.start();
                     isRecording = true;
-                    recordBtn.textContent = '⏹ Стоп';
+                    recordBtn.textContent = '⏹';
                     recordBtn.classList.add('recording');
+                    // Отправляем статус начала записи
+                    socket.emit('action_status', { username: localUsername, action: 'recording' });
                 } catch (err) {
                     alert('Нет доступа к микрофону: ' + err.message);
                 }
@@ -321,29 +416,28 @@
                     mediaRecorder.stop();
                 }
                 isRecording = false;
-                recordBtn.textContent = '🎤 Запись';
+                recordBtn.textContent = '🎤';
                 recordBtn.classList.remove('recording');
             }
         }
 
-        // ---------- Фото и файлы (без изменений) ----------
-        const MAX_ORIGINAL_MB = 30;
-        const MAX_FINAL_BASE64_MB = 5;
-        const TARGET_IMAGE_PX = 1600;
-        function selectImage() { imageInput.click(); }
+        // ---------- Фото и файлы с индикаторами ----------
+        const MAX_ORIGINAL_MB = 30, MAX_FINAL_BASE64_MB = 5, TARGET_IMAGE_PX = 1600;
+        function selectImage() { document.getElementById('image-input').click(); }
         function sendImage(input) {
             const file = input.files[0];
             if (!file) return;
             if (file.size > MAX_ORIGINAL_MB * 1024 * 1024) {
-                alert(`Файл слишком большой. Максимальный размер: ${MAX_ORIGINAL_MB} МБ.`);
-                imageInput.value = '';
+                alert(`Максимум ${MAX_ORIGINAL_MB} МБ`);
+                input.value = '';
                 return;
             }
-            statusMsg.textContent = 'Обработка фото...';
+            // Статус: отправка фото
+            socket.emit('action_status', { username: localUsername, action: 'sending_photo' });
             if (file.size <= MAX_FINAL_BASE64_MB * 1024 * 1024) {
                 readAndSendImage(file);
             } else {
-                compressImage(file, (compressedFile) => readAndSendImage(compressedFile));
+                compressImage(file, (blob) => readAndSendImage(blob));
             }
         }
         function readAndSendImage(file) {
@@ -351,14 +445,9 @@
             reader.onload = () => {
                 const base64 = reader.result.split(',')[1];
                 const mime = file.type || 'image/jpeg';
-                socket.emit('image_message', { username: localUsername, image: base64, mime: mime });
-                imageInput.value = '';
-                statusMsg.textContent = '';
-            };
-            reader.onerror = () => {
-                alert('Ошибка чтения файла.');
-                imageInput.value = '';
-                statusMsg.textContent = '';
+                socket.emit('image_message', { username: localUsername, image: base64, mime });
+                // Убираем статус после отправки
+                socket.emit('action_status', { username: localUsername, action: '' });
             };
             reader.readAsDataURL(file);
         }
@@ -369,54 +458,36 @@
                 URL.revokeObjectURL(url);
                 let { width, height } = img;
                 if (width > TARGET_IMAGE_PX || height > TARGET_IMAGE_PX) {
-                    if (width > height) {
-                        height = (height / width) * TARGET_IMAGE_PX;
-                        width = TARGET_IMAGE_PX;
-                    } else {
-                        width = (width / height) * TARGET_IMAGE_PX;
-                        height = TARGET_IMAGE_PX;
-                    }
+                    if (width > height) { height = (height / width) * TARGET_IMAGE_PX; width = TARGET_IMAGE_PX; }
+                    else { width = (width / height) * TARGET_IMAGE_PX; height = TARGET_IMAGE_PX; }
                 }
                 const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
+                canvas.width = width; canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
-                const tryQuality = (quality) => {
+                const tryQuality = (q) => {
                     canvas.toBlob((blob) => {
-                        if (!blob) {
-                            canvas.toBlob((fallback) => callback(fallback), 'image/jpeg', 0.5);
-                            return;
-                        }
-                        const estimatedBase64MB = (blob.size * 1.37) / (1024 * 1024);
-                        if (estimatedBase64MB <= MAX_FINAL_BASE64_MB || quality <= 0.3) {
-                            callback(blob);
-                        } else {
-                            tryQuality(Math.max(0.3, quality - 0.15));
-                        }
-                    }, 'image/jpeg', quality);
+                        if (!blob) { canvas.toBlob(fb => callback(fb), 'image/jpeg', 0.5); return; }
+                        const est = (blob.size * 1.37) / (1024 * 1024);
+                        if (est <= MAX_FINAL_BASE64_MB || q <= 0.3) callback(blob);
+                        else tryQuality(Math.max(0.3, q - 0.15));
+                    }, 'image/jpeg', q);
                 };
                 tryQuality(0.7);
-            };
-            img.onerror = () => {
-                alert('Не удалось загрузить изображение для сжатия.');
-                imageInput.value = '';
-                statusMsg.textContent = '';
             };
             img.src = url;
         }
 
-        const MAX_FILE_MB = 10;
-        function selectFile() { fileInput.click(); }
+        function selectFile() { document.getElementById('file-input').click(); }
         function sendFile(input) {
             const file = input.files[0];
             if (!file) return;
-            if (file.size > MAX_FILE_MB * 1024 * 1024) {
-                alert(`Файл слишком большой. Максимальный размер: ${MAX_FILE_MB} МБ.`);
-                fileInput.value = '';
+            if (file.size > 10 * 1024 * 1024) {
+                alert('Максимум 10 МБ');
+                input.value = '';
                 return;
             }
-            statusMsg.textContent = 'Загрузка файла...';
+            socket.emit('action_status', { username: localUsername, action: 'sending_file' });
             const reader = new FileReader();
             reader.onload = () => {
                 const base64 = reader.result.split(',')[1];
@@ -427,18 +498,13 @@
                     mime: file.type || 'application/octet-stream',
                     size: file.size
                 });
-                fileInput.value = '';
-                statusMsg.textContent = '';
-            };
-            reader.onerror = () => {
-                alert('Ошибка чтения файла.');
-                fileInput.value = '';
-                statusMsg.textContent = '';
+                socket.emit('action_status', { username: localUsername, action: '' });
             };
             reader.readAsDataURL(file);
         }
 
-        // ---------- Регистрация и список онлайн ----------
+        // ---------- Регистрация и онлайн ----------
+        usernameInput = document.getElementById('username');
         usernameInput.addEventListener('change', () => {
             localUsername = usernameInput.value.trim() || 'Гость';
             socket.emit('register', { username: localUsername });
@@ -447,38 +513,35 @@
             localUsername = usernameInput.value.trim() || 'Гость';
             socket.emit('register', { username: localUsername });
         });
-
         socket.on('update_user_list', (users) => {
             onlineUsersSpan.innerHTML = '';
-            users.forEach(user => {
-                if (user !== localUsername) {
+            users.forEach(u => {
+                if (u !== localUsername) {
                     const span = document.createElement('span');
-                    span.textContent = user;
+                    span.textContent = u;
                     onlineUsersSpan.appendChild(span);
                 }
             });
         });
 
-        // ---------- Индикатор печати ----------
+        // ---------- Индикаторы ----------
         socket.on('typing', (data) => {
-            if (data.typing && data.username !== localUsername) {
-                typingIndicator.textContent = `${data.username} печатает...`;
-            } else {
-                typingIndicator.textContent = '';
-            }
+            typingIndicator.textContent = data.typing ? `${data.username} печатает...` : '';
+        });
+        socket.on('action_status', (data) => {
+            if (data.action === 'recording') actionStatus.textContent = `${data.username} записывает аудио...`;
+            else if (data.action === 'sending_photo') actionStatus.textContent = `${data.username} отправляет фото...`;
+            else if (data.action === 'sending_file') actionStatus.textContent = `${data.username} отправляет файл...`;
+            else actionStatus.textContent = '';
         });
 
-        // ---------- Приём сообщений ----------
-        socket.on('text_message', (data) => appendMessage('text', data.username, data.text));
-        socket.on('voice_message', (data) => appendMessage('voice', data.username, data.audio));
-        socket.on('image_message', (data) => appendMessage('image', data.username, data.image, { mime: data.mime }));
-        socket.on('file_message', (data) => appendMessage('file', data.username, data.file_data, { filename: data.filename, mime: data.mime, size: data.size }));
-        socket.on('user_joined', (data) => appendMessage('system', '', data.msg));
-        socket.on('user_left', (data) => appendMessage('system', '', data.msg));
-
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) document.title = 'PyMessenger';
-        });
+        // Приём сообщений
+        socket.on('text_message', (d) => addMessage('text', d.username, d.text));
+        socket.on('voice_message', (d) => addMessage('voice', d.username, d.audio));
+        socket.on('image_message', (d) => addMessage('image', d.username, d.image, { mime: d.mime }));
+        socket.on('file_message', (d) => addMessage('file', d.username, d.file_data, { filename: d.filename, mime: d.mime, size: d.size }));
+        socket.on('user_joined', (d) => addMessage('system', '', d.msg));
+        socket.on('user_left', (d) => addMessage('system', '', d.msg));
     </script>
 </body>
 </html>
