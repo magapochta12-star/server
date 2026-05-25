@@ -189,24 +189,40 @@
             text-decoration: none;
             font-size: 0.85em;
         }
-        .action-status {
-            font-size: 0.8em;
-            color: var(--secondary-text);
-            font-style: italic;
-            padding: 2px 10px;
-            text-align: center;
-            animation: fadeInDown 0.3s;
+
+        /* Статус-бар (индикаторы) – теперь над полем ввода */
+        .status-bar {
+            padding: 4px 15px;
+            background: transparent;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            min-height: 1.5em;
+            font-size: 0.85em;
+            color: var(--primary);
+            font-weight: 500;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
         }
-        @keyframes fadeInDown {
-            from { opacity: 0; transform: translateY(-5px); }
-            to { opacity: 1; transform: translateY(0); }
+        .status-bar .shimmer-text {
+            display: inline-block;
+            background: linear-gradient(135deg,
+                rgba(42,157,143,0.1) 0%,
+                rgba(42,157,143,1) 25%,
+                rgba(42,157,143,0.1) 50%,
+                rgba(42,157,143,1) 75%,
+                rgba(42,157,143,0.1) 100%
+            );
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: shimmer 1.5s infinite linear;
         }
-        #typing-indicator {
-            height: 1.2em;
-            font-size: 0.8em;
-            color: var(--secondary-text);
-            padding-left: 15px;
-            margin-bottom: 5px;
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
         }
 
         /* Панель ввода */
@@ -219,7 +235,7 @@
             align-items: center;
             box-shadow: 0 -1px 4px rgba(0,0,0,0.05);
             z-index: 10;
-            margin-bottom: 0; /* по умолчанию */
+            margin-bottom: 0;
         }
         #text-input {
             flex: 1;
@@ -269,11 +285,10 @@
             .chat-container { padding: 8px 10px; gap: 6px; }
             .message { max-width: 90%; padding: 6px 10px; }
             .message .text { font-size: 0.9em; }
+            .status-bar { padding: 4px 10px; font-size: 0.8em; }
             .input-panel { padding: 6px 8px; gap: 4px; }
             #text-input { padding: 6px 10px; font-size: 0.85em; }
             .input-panel button { width: 34px; height: 34px; font-size: 1em; }
-            .action-status { font-size: 0.75em; }
-            #typing-indicator { font-size: 0.75em; padding-left: 10px; }
         }
         @media (max-width: 375px) {
             .input-panel button { width: 30px; height: 30px; font-size: 0.9em; }
@@ -298,9 +313,13 @@
     <div id="user-list"><span id="online-users"></span></div>
 
     <div class="chat-container" id="chat-container">
-        <div id="typing-indicator"></div>
-        <div id="action-status" class="action-status"></div>
         <div id="messages"></div>
+    </div>
+
+    <!-- Индикаторы теперь здесь, над полем ввода -->
+    <div class="status-bar" id="status-bar">
+        <span id="typing-indicator"></span>
+        <span id="action-status"></span>
     </div>
 
     <div class="input-panel" id="input-panel">
@@ -583,15 +602,26 @@
             });
         });
 
-        // ---------- Индикаторы ----------
+        // ---------- Индикаторы (с анимацией shimmer) ----------
+        function setStatusText(element, text) {
+            if (text) {
+                element.textContent = text;
+                element.classList.add('shimmer-text');
+            } else {
+                element.textContent = '';
+                element.classList.remove('shimmer-text');
+            }
+        }
+
         socket.on('typing', (data) => {
-            typingIndicator.textContent = data.typing ? `${data.username} печатает...` : '';
+            setStatusText(typingIndicator, data.typing ? `${data.username} печатает...` : '');
         });
         socket.on('action_status', (data) => {
-            if (data.action === 'recording') actionStatus.textContent = `${data.username} записывает аудио...`;
-            else if (data.action === 'sending_photo') actionStatus.textContent = `${data.username} отправляет фото...`;
-            else if (data.action === 'sending_file') actionStatus.textContent = `${data.username} отправляет файл...`;
-            else actionStatus.textContent = '';
+            let txt = '';
+            if (data.action === 'recording') txt = `${data.username} записывает аудио...`;
+            else if (data.action === 'sending_photo') txt = `${data.username} отправляет фото...`;
+            else if (data.action === 'sending_file') txt = `${data.username} отправляет файл...`;
+            setStatusText(actionStatus, txt);
         });
 
         // Приём сообщений
