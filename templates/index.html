@@ -44,6 +44,7 @@
             transition: background var(--transition), color var(--transition);
             overflow: hidden;
             -webkit-tap-highlight-color: transparent;
+            padding-bottom: env(safe-area-inset-bottom, 0px);
         }
         /* Шапка */
         .header {
@@ -68,7 +69,6 @@
             color: var(--text);
             padding: 5px;
         }
-        /* Строка с именем и кнопкой уведомлений */
         .user-settings {
             display: flex;
             align-items: center;
@@ -98,7 +98,6 @@
             font-size: 0.85em;
             white-space: nowrap;
         }
-        /* Онлайн */
         #user-list {
             font-size: 0.8em;
             padding: 5px 15px;
@@ -115,7 +114,6 @@
             margin: 0 3px;
             font-size: 0.8em;
         }
-        /* Чат */
         .chat-container {
             flex: 1;
             overflow-y: auto;
@@ -126,6 +124,7 @@
             background: var(--bg);
             scroll-behavior: smooth;
             -webkit-overflow-scrolling: touch;
+            touch-action: pan-y; /* важно для мобильного скролла */
         }
         .message {
             display: flex;
@@ -191,7 +190,6 @@
             text-decoration: none;
             font-size: 0.85em;
         }
-        /* Индикаторы */
         .action-status {
             font-size: 0.8em;
             color: var(--secondary-text);
@@ -212,7 +210,7 @@
             margin-bottom: 5px;
         }
 
-        /* Панель ввода (основные стили) */
+        /* Панель ввода */
         .input-panel {
             background: var(--surface);
             padding: 8px 12px;
@@ -221,7 +219,8 @@
             gap: 6px;
             align-items: center;
             box-shadow: 0 -1px 4px rgba(0,0,0,0.05);
-            transition: padding-bottom 0.2s;
+            z-index: 10;
+            padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
         }
         #text-input {
             flex: 1;
@@ -256,95 +255,30 @@
             background: #e74c3c;
         }
 
-        /* Класс для мобильных устройств – поднимает панель над нижней панелью браузера */
-        body.mobile .input-panel {
-            padding-bottom: 12px; /* базовый отступ */
-            /* используем safe-area-inset-bottom, если поддерживается */
-            padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-            margin-bottom: 0;
-        }
-
-        /* Дополнительная адаптация для маленьких экранов */
+        /* Адаптация для мобильных */
         @media (max-width: 500px) {
-            .header {
-                padding: 6px 10px;
-            }
-            .header h2 {
-                font-size: 1.1em;
-            }
-            .theme-toggle {
-                font-size: 1.2em;
-            }
-            .user-settings {
-                padding: 5px 10px;
-                gap: 5px;
-            }
-            .user-settings input {
-                padding: 5px 8px;
-                font-size: 0.85em;
-            }
-            .user-settings button {
-                padding: 5px 10px;
-                font-size: 0.8em;
-            }
-            #user-list {
-                padding: 4px 10px;
-                font-size: 0.75em;
-            }
-            .chat-container {
-                padding: 8px 10px;
-                gap: 6px;
-            }
-            .message {
-                max-width: 90%;
-                padding: 6px 10px;
-            }
-            .message .text {
-                font-size: 0.9em;
-            }
-            .input-panel {
-                padding: 6px 8px;
-                gap: 4px;
-            }
-            #text-input {
-                padding: 6px 10px;
-                font-size: 0.85em;
-            }
-            .input-panel button {
-                width: 34px;
-                height: 34px;
-                font-size: 1em;
-            }
-            .action-status {
-                font-size: 0.75em;
-            }
-            #typing-indicator {
-                font-size: 0.75em;
-                padding-left: 10px;
-            }
+            .header { padding: 6px 10px; }
+            .header h2 { font-size: 1.1em; }
+            .theme-toggle { font-size: 1.2em; }
+            .user-settings { padding: 5px 10px; gap: 5px; }
+            .user-settings input { padding: 5px 8px; font-size: 0.85em; }
+            .user-settings button { padding: 5px 10px; font-size: 0.8em; }
+            #user-list { padding: 4px 10px; font-size: 0.75em; }
+            .chat-container { padding: 8px 10px; gap: 6px; }
+            .message { max-width: 90%; padding: 6px 10px; }
+            .message .text { font-size: 0.9em; }
+            .input-panel { padding: 6px 8px; gap: 4px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+            #text-input { padding: 6px 10px; font-size: 0.85em; }
+            .input-panel button { width: 34px; height: 34px; font-size: 1em; }
+            .action-status { font-size: 0.75em; }
+            #typing-indicator { font-size: 0.75em; padding-left: 10px; }
         }
-
         @media (max-width: 375px) {
-            .input-panel button {
-                width: 30px;
-                height: 30px;
-                font-size: 0.9em;
-            }
-            #text-input {
-                padding: 5px 8px;
-                font-size: 0.8em;
-            }
-            .user-settings input {
-                font-size: 0.8em;
-            }
-            .user-settings button {
-                padding: 4px 8px;
-                font-size: 0.75em;
-            }
-            .message {
-                max-width: 95%;
-                padding: 5px 8px;
-            }
+            .input-panel button { width: 30px; height: 30px; font-size: 0.9em; }
+            #text-input { padding: 5px 8px; font-size: 0.8em; }
+            .user-settings input { font-size: 0.8em; }
+            .user-settings button { padding: 4px 8px; font-size: 0.75em; }
+            .message { max-width: 95%; padding: 5px 8px; }
         }
     </style>
 </head>
@@ -367,7 +301,7 @@
         <div id="messages"></div>
     </div>
 
-    <div class="input-panel">
+    <div class="input-panel" id="input-panel">
         <input type="text" id="text-input" placeholder="Сообщение...">
         <button onclick="sendText()" title="Отправить">➤</button>
         <button class="record" id="record-btn" onclick="toggleRecord()">🎤</button>
@@ -379,14 +313,6 @@
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
-        // Определяем мобильное устройство и добавляем класс
-        (function() {
-            const isMobile = /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent);
-            if (isMobile) {
-                document.body.classList.add('mobile');
-            }
-        })();
-
         const socket = io();
         const chatContainer = document.getElementById('chat-container');
         const messagesDiv = document.getElementById('messages');
@@ -397,10 +323,39 @@
         const actionStatus = document.getElementById('action-status');
         const onlineUsersSpan = document.getElementById('online-users');
         const themeToggle = document.getElementById('theme-toggle');
+        const inputPanel = document.getElementById('input-panel');
 
         let mediaRecorder, audioChunks = [], isRecording = false, notificationsEnabled = false;
         let localUsername = usernameInput.value.trim() || 'Гость';
         let typingTimer;
+
+        // ---------- Исправление скролла и отступа на мобильных ----------
+        function isMobile() {
+            return /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent);
+        }
+
+        // При фокусе на поле ввода поднимаем панель и прокручиваем чат вниз
+        textInput.addEventListener('focus', () => {
+            if (isMobile()) {
+                // Небольшая задержка, чтобы клавиатура открылась
+                setTimeout(() => {
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                    // Дополнительно можно использовать scrollIntoView, но достаточно скролла чата
+                }, 300);
+            }
+        });
+
+        // При потере фокуса возвращаем всё на место
+        textInput.addEventListener('blur', () => {
+            if (isMobile()) {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+        });
+
+        // Обеспечиваем, чтобы чат-контейнер прокручивался при новых сообщениях
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
 
         // ---------- Тема ----------
         function applyTheme(theme) {
@@ -496,7 +451,7 @@
                 div.innerHTML += `<span class="time">${getTime()}</span>`;
             }
             messagesDiv.appendChild(div);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
+            scrollToBottom();
         }
 
         // ---------- Отправка текста и индикатор печати ----------
@@ -506,6 +461,7 @@
             socket.emit('text_message', { username: localUsername, text });
             socket.emit('typing', { username: localUsername, typing: false });
             textInput.value = '';
+            scrollToBottom();
         }
 
         textInput.addEventListener('input', () => {
