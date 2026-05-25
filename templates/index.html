@@ -115,7 +115,8 @@
     <div id="call-panel">
         <div id="call-status"></div>
         <div class="video-container">
-            <video id="localVideo" autoplay muted playsinline></video>
+            <!-- Локальное видео скрыто, так как мы без камеры -->
+            <video id="localVideo" autoplay muted playsinline style="display:none;"></video>
             <video id="remoteVideo" autoplay muted playsinline></video>
         </div>
         <div class="call-buttons">
@@ -153,15 +154,13 @@
         let localUsername = 'Гость';
         let localStream, peerConnection;
 
-        // НОВАЯ КОНФИГУРАЦИЯ С TURN (UDP + TCP)
+        // НОВАЯ КОНФИГУРАЦИЯ С НАДЁЖНЫМ TURN-СЕРВЕРОМ
         const pcConfig = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
                 {
                     urls: [
-                        'turn:openrelay.metered.ca:80?transport=udp',
-                        'turn:openrelay.metered.ca:80?transport=tcp',
-                        'turn:openrelay.metered.ca:443?transport=tcp'
+                        'turns:global.relay.metered.ca:443?transport=tcp'
                     ],
                     username: 'openrelayproject',
                     credential: 'openrelayproject'
@@ -461,18 +460,13 @@
             });
         });
 
-        // ---------- Звонки с улучшенным TURN ----------
+        // ---------- Звонки (только аудио) ----------
         async function getMediaSafe() {
+            // Теперь запрашиваем ТОЛЬКО аудио, без видео
             try {
-                return await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-            } catch (e) {
-                console.warn('Видео+аудио недоступны, пробуем только аудио:', e);
-                callStatus.textContent += ' (только аудио)';
-                try {
-                    return await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                } catch (err) {
-                    throw new Error('Нет доступа ни к камере, ни к микрофону.');
-                }
+                return await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            } catch (err) {
+                throw new Error('Нет доступа к микрофону.');
             }
         }
 
@@ -523,8 +517,8 @@
 
             try {
                 localStream = await getMediaSafe();
-                localVideo.srcObject = localStream;
-                console.log('Локальный поток получен');
+                // Локальное видео скрыто, поэтому srcObject не назначаем
+                console.log('Локальный аудиопоток получен');
 
                 peerConnection = new RTCPeerConnection(pcConfig);
                 localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
@@ -582,7 +576,6 @@
 
                 try {
                     localStream = await getMediaSafe();
-                    localVideo.srcObject = localStream;
                     peerConnection = new RTCPeerConnection(pcConfig);
                     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
