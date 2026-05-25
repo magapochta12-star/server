@@ -16,9 +16,11 @@
         #record-btn { background: #e74c3c; }
         #record-btn.recording { background: #c0392b; animation: pulse 1s infinite; }
         #image-btn { background: #27ae60; }
+        #file-btn { background: #f39c12; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         audio, img { display: block; margin-top: 5px; max-width: 100%; }
         img { max-height: 300px; border-radius: 5px; }
+        .file-link { display: inline-block; margin-top: 5px; padding: 5px 10px; background: #ecf0f1; border-radius: 4px; text-decoration: none; color: #2c3e50; }
         #status-msg { font-size: 0.9em; color: #555; margin-left: 5px; }
     </style>
 </head>
@@ -33,7 +35,9 @@
         <button onclick="sendText()">Отправить</button>
         <button id="record-btn" onclick="toggleRecord()">🎤 Запись</button>
         <button id="image-btn" onclick="selectImage()">📷 Фото</button>
+        <button id="file-btn" onclick="selectFile()">📎 Файл</button>
         <input type="file" id="image-input" accept="image/*" style="display:none;" onchange="sendImage(this)">
+        <input type="file" id="file-input" style="display:none;" onchange="sendFile(this)">
         <span id="status-msg"></span>
     </div>
 
@@ -45,7 +49,9 @@
         const usernameInput = document.getElementById('username');
         const recordBtn = document.getElementById('record-btn');
         const imageBtn = document.getElementById('image-btn');
+        const fileBtn = document.getElementById('file-btn');
         const imageInput = document.getElementById('image-input');
+        const fileInput = document.getElementById('file-input');
         const statusMsg = document.getElementById('status-msg');
 
         let mediaRecorder;
@@ -93,10 +99,30 @@
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
+        function addFileMessage(username, filename, fileData, mime, size) {
+            const div = document.createElement('div');
+            div.className = 'msg';
+            div.innerHTML = `<span class="username">${escapeHtml(username)}:</span> файл: ${escapeHtml(filename)} (${formatSize(size)})<br>`;
+            const a = document.createElement('a');
+            a.href = `data:${mime};base64,${fileData}`;
+            a.download = filename;
+            a.className = 'file-link';
+            a.textContent = '📥 Скачать';
+            div.appendChild(a);
+            messagesDiv.appendChild(div);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' КБ';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' МБ';
         }
 
         // ----- Текстовые сообщения -----
@@ -157,10 +183,10 @@
             }
         }
 
-        // ----- Фото с сжатием -----
-        const MAX_ORIGINAL_MB = 30;        // разрешённый исходный размер
-        const MAX_FINAL_BASE64_MB = 5;     // целевой размер после сжатия (в МБ для base64)
-        const TARGET_IMAGE_PX = 1600;      // максимальная сторона после сжатия
+        // ----- Фото с сжатием (до 30 МБ исходного, сжатие до 5 МБ) -----
+        const MAX_ORIGINAL_MB = 30;
+        const MAX_FINAL_BASE64_MB = 5;
+        const TARGET_IMAGE_PX = 1600;
 
         function selectImage() {
             imageInput.click();
@@ -169,29 +195,20 @@
         function sendImage(input) {
             const file = input.files[0];
             if (!file) return;
-
-            // Проверка на максимальный исходный размер
             if (file.size > MAX_ORIGINAL_MB * 1024 * 1024) {
                 alert(`Файл слишком большой. Максимальный размер: ${MAX_ORIGINAL_MB} МБ.`);
                 imageInput.value = '';
                 return;
             }
-
             statusMsg.textContent = 'Обработка фото...';
-
-            // Если файл уже ≤ 5 МБ, отправляем без сжатия
             if (file.size <= MAX_FINAL_BASE64_MB * 1024 * 1024) {
-                readAndSend(file);
-                return;
+                readAndSendImage(file);
+            } else {
+                compressImage(file, (compressedFile) => readAndSendImage(compressedFile));
             }
-
-            // Иначе сжимаем
-            compressImage(file, (compressedFile) => {
-                readAndSend(compressedFile);
-            });
         }
 
-        function readAndSend(file) {
+        function readAndSendImage(file) {
             const reader = new FileReader();
             reader.onload = () => {
                 const base64 = reader.result.split(',')[1];
@@ -217,8 +234,6 @@
             const url = URL.createObjectURL(file);
             img.onload = () => {
                 URL.revokeObjectURL(url);
-
-                // Определяем новые размеры
                 let { width, height } = img;
                 const maxDim = TARGET_IMAGE_PX;
                 if (width > maxDim || height > maxDim) {
@@ -230,8 +245,6 @@
                         height = maxDim;
                     }
                 }
-
-                // Пытаемся подобрать качество, чтобы итоговый файл был меньше лимита
                 const canvas = document.createElement('canvas');
                 canvas.width = width;
                 canvas.height = height;
@@ -241,22 +254,18 @@
                 const tryQuality = (quality) => {
                     canvas.toBlob((blob) => {
                         if (!blob) {
-                            // Если не получилось, отправляем что есть
                             canvas.toBlob((fallback) => callback(fallback), 'image/jpeg', 0.5);
                             return;
                         }
-                        // Пересчитываем размер base64 (примерно blob.size * 4/3)
-                        const estimatedBase64MB = (blob.size * 1.37) / (1024 * 1024); 
+                        const estimatedBase64MB = (blob.size * 1.37) / (1024 * 1024);
                         if (estimatedBase64MB <= MAX_FINAL_BASE64_MB || quality <= 0.3) {
                             callback(blob);
                         } else {
-                            // Уменьшаем качество на 0.15
                             tryQuality(Math.max(0.3, quality - 0.15));
                         }
                     }, 'image/jpeg', quality);
                 };
-
-                tryQuality(0.7); // начальное качество
+                tryQuality(0.7);
             };
             img.onerror = () => {
                 alert('Не удалось загрузить изображение для сжатия.');
@@ -266,6 +275,43 @@
             img.src = url;
         }
 
+        // ----- Отправка любых файлов (до 10 МБ) -----
+        const MAX_FILE_MB = 10;
+
+        function selectFile() {
+            fileInput.click();
+        }
+
+        function sendFile(input) {
+            const file = input.files[0];
+            if (!file) return;
+            if (file.size > MAX_FILE_MB * 1024 * 1024) {
+                alert(`Файл слишком большой. Максимальный размер: ${MAX_FILE_MB} МБ.`);
+                fileInput.value = '';
+                return;
+            }
+            statusMsg.textContent = 'Загрузка файла...';
+            const reader = new FileReader();
+            reader.onload = () => {
+                const base64 = reader.result.split(',')[1];
+                socket.emit('file_message', {
+                    username: usernameInput.value || 'Аноним',
+                    filename: file.name,
+                    file_data: base64,
+                    mime: file.type || 'application/octet-stream',
+                    size: file.size
+                });
+                fileInput.value = '';
+                statusMsg.textContent = '';
+            };
+            reader.onerror = () => {
+                alert('Ошибка чтения файла.');
+                fileInput.value = '';
+                statusMsg.textContent = '';
+            };
+            reader.readAsDataURL(file);
+        }
+
         // ----- Обработчики сокета -----
         socket.on('connect', () => addSystemMessage('✅ Вы подключены'));
         socket.on('user_joined', (data) => addSystemMessage(data.msg));
@@ -273,6 +319,7 @@
         socket.on('text_message', (data) => addTextMessage(data.username, data.text));
         socket.on('voice_message', (data) => addVoiceMessage(data.username, data.audio));
         socket.on('image_message', (data) => addImageMessage(data.username, data.image, data.mime));
+        socket.on('file_message', (data) => addFileMessage(data.username, data.filename, data.file_data, data.mime, data.size));
     </script>
 </body>
 </html>
