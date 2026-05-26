@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>PyMessenger</title>
+    <meta name="theme-color" content="#2a9d8f">
     <style>
         :root {
             --bg: #e8ecf0;
@@ -17,23 +18,20 @@
             --other-msg: #ffffff;
             --shadow: 0 1px 2px rgba(0,0,0,0.1);
             --radius: 12px;
-            --transition: 0.2s ease;
         }
         .dark-theme {
             --bg: #1f1f1f;
             --surface: #2c2c2c;
             --primary: #4a9e8f;
-            --primary-text: #ffffff;
             --text: #e0e0e0;
             --secondary-text: #a0a0a0;
             --border: #3a3a3a;
             --my-msg: #2a5a4a;
             --other-msg: #2c2c2c;
-            --shadow: 0 1px 4px rgba(0,0,0,0.5);
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             max-width: 700px;
             margin: 0 auto;
             height: 100vh;
@@ -41,24 +39,22 @@
             flex-direction: column;
             background: var(--bg);
             color: var(--text);
-            transition: background var(--transition), color var(--transition);
             overflow: hidden;
             -webkit-tap-highlight-color: transparent;
         }
         .header {
             display: flex; align-items: center; justify-content: space-between;
             padding: 8px 15px; background: var(--surface);
-            border-bottom: 1px solid var(--border); box-shadow: var(--shadow); z-index: 2;
+            border-bottom: 1px solid var(--border); box-shadow: var(--shadow);
         }
-        .header h2 { font-size: 1.2em; font-weight: 600; }
+        .header h2 { font-size: 1.2em; }
         .theme-toggle {
-            background: none; border: none; font-size: 1.3em;
-            cursor: pointer; color: var(--text); padding: 5px;
+            background: none; border: none; font-size: 1.4em; cursor: pointer; color: var(--text);
         }
         .user-settings {
             display: flex; align-items: center; gap: 8px;
             padding: 6px 15px; background: var(--surface);
-            border-bottom: 1px solid var(--border); font-size: 0.9em;
+            border-bottom: 1px solid var(--border);
         }
         .user-settings input {
             flex: 1; padding: 6px 10px; border: 1px solid var(--border);
@@ -68,7 +64,7 @@
         .user-settings button {
             background: var(--primary); color: var(--primary-text);
             border: none; border-radius: 6px; padding: 6px 12px;
-            cursor: pointer; font-size: 0.85em; white-space: nowrap;
+            cursor: pointer; font-size: 0.85em;
         }
         #user-list {
             font-size: 0.8em; padding: 5px 15px; background: var(--surface);
@@ -81,14 +77,12 @@
         .chat-container {
             flex: 1; overflow-y: auto; padding: 10px 15px;
             display: flex; flex-direction: column; gap: 8px;
-            background: var(--bg); scroll-behavior: smooth;
-            -webkit-overflow-scrolling: touch; touch-action: pan-y;
+            background: var(--bg); -webkit-overflow-scrolling: touch;
         }
         .message {
             display: flex; flex-direction: column; max-width: 80%;
             padding: 8px 12px; border-radius: var(--radius);
-            box-shadow: var(--shadow); animation: fadeInUp 0.3s ease;
-            word-wrap: break-word; position: relative;
+            box-shadow: var(--shadow); animation: fadeIn 0.2s;
         }
         .message.my {
             align-self: flex-end; background: var(--my-msg);
@@ -98,72 +92,32 @@
             align-self: flex-start; background: var(--other-msg);
             border-bottom-left-radius: 4px;
         }
-        .message .sender {
-            font-weight: 600; font-size: 0.85em; color: var(--primary); margin-bottom: 2px;
-        }
-        .message .text { font-size: 0.95em; line-height: 1.4; }
-        .message .time {
-            font-size: 0.7em; color: var(--secondary-text);
-            align-self: flex-end; margin-top: 2px;
-        }
-        .message.system {
-            align-self: center; background: transparent; box-shadow: none;
-            color: var(--secondary-text); font-style: italic; font-size: 0.85em;
-        }
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .message img, .message audio {
-            max-width: 100%; border-radius: 8px; margin-top: 5px;
-        }
+        .message .sender { font-weight: 600; font-size: 0.85em; color: var(--primary); margin-bottom: 2px; }
+        .message .text { font-size: 0.95em; }
+        .message .time { font-size: 0.7em; color: var(--secondary-text); align-self: flex-end; }
+        .message.system { align-self: center; background: transparent; box-shadow: none; color: var(--secondary-text); font-style: italic; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .message img, .message audio { max-width: 100%; border-radius: 8px; margin-top: 5px; }
         .file-link {
             display: inline-block; margin-top: 5px; padding: 6px 10px;
             background: var(--primary); color: var(--primary-text);
             border-radius: 20px; text-decoration: none; font-size: 0.85em;
         }
-
         .status-bar {
             padding: 4px 15px; background: transparent;
-            display: flex; flex-direction: column; gap: 2px;
-            min-height: 2.2em; font-size: 0.85em; color: var(--primary);
-            font-weight: 500; overflow: hidden;
+            min-height: 1.8em; font-size: 0.85em; color: var(--primary);
+            font-weight: 500; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
         }
-        .status-text {
-            display: inline-block;
-            background: linear-gradient(135deg,
-                rgba(42,157,143,0.1) 0%, rgba(42,157,143,1) 25%,
-                rgba(42,157,143,0.1) 50%, rgba(42,157,143,1) 75%,
-                rgba(42,157,143,0.1) 100%);
-            background-size: 200% 100%;
-            -webkit-background-clip: text; background-clip: text;
-            color: transparent;
-            animation: shimmer 3s infinite linear;
+        .shimmer {
+            background: linear-gradient(90deg, var(--primary) 25%, transparent 50%, var(--primary) 75%);
+            background-size: 200% 100%; -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent; animation: shimmer 2s infinite;
         }
-        @keyframes shimmer {
-            0% { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
-        }
-        .progress-bar {
-            height: 3px; background: var(--border); border-radius: 2px;
-            overflow: hidden; margin-top: 1px; display: none;
-        }
-        .progress-bar.active { display: block; }
-        .progress-fill {
-            width: 0%; height: 100%;
-            background: var(--primary);
-            animation: fillBar 4s ease forwards;
-        }
-        @keyframes fillBar {
-            0% { width: 0%; }
-            100% { width: 100%; }
-        }
-
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         .input-panel {
             background: var(--surface); padding: 8px 12px;
             border-top: 1px solid var(--border); display: flex; gap: 6px;
             align-items: center; box-shadow: 0 -1px 4px rgba(0,0,0,0.05);
-            z-index: 10;
             padding-bottom: calc(15px + env(safe-area-inset-bottom, 0px));
         }
         #text-input {
@@ -180,29 +134,9 @@
         }
         .input-panel button:active { transform: scale(0.95); }
         .input-panel button.record { background: #e74c3c; }
-
         @media (max-width: 500px) {
-            .header { padding: 6px 10px; }
-            .header h2 { font-size: 1.1em; }
-            .theme-toggle { font-size: 1.2em; }
-            .user-settings { padding: 5px 10px; gap: 5px; }
-            .user-settings input { padding: 5px 8px; font-size: 0.85em; }
-            .user-settings button { padding: 5px 10px; font-size: 0.8em; }
-            #user-list { padding: 4px 10px; font-size: 0.75em; }
-            .chat-container { padding: 8px 10px; gap: 6px; }
-            .message { max-width: 90%; padding: 6px 10px; }
-            .message .text { font-size: 0.9em; }
-            .status-bar { padding: 4px 10px; font-size: 0.8em; }
-            .input-panel { padding: 6px 8px; gap: 4px; }
-            #text-input { padding: 6px 10px; font-size: 0.85em; }
             .input-panel button { width: 34px; height: 34px; font-size: 1em; }
-        }
-        @media (max-width: 375px) {
-            .input-panel button { width: 30px; height: 30px; font-size: 0.9em; }
-            #text-input { padding: 5px 8px; font-size: 0.8em; }
-            .user-settings input { font-size: 0.8em; }
-            .user-settings button { padding: 4px 8px; font-size: 0.75em; }
-            .message { max-width: 95%; padding: 5px 8px; }
+            #text-input { font-size: 0.85em; }
         }
     </style>
 </head>
@@ -211,44 +145,371 @@
         <h2>PyMessenger</h2>
         <button class="theme-toggle" id="theme-toggle">🌙</button>
     </div>
-
     <div class="user-settings">
         <input type="text" id="username" placeholder="Ваше имя" value="Гость">
         <button onclick="requestNotificationPermission()">🔔</button>
     </div>
-
     <div id="user-list"><span id="online-users"></span></div>
-
     <div class="chat-container" id="chat-container">
         <div id="messages"></div>
     </div>
-
     <div class="status-bar" id="status-bar">
-        <div id="typing-indicator" class="status-text"></div>
-        <div id="action-status" class="status-text"></div>
-        <div class="progress-bar" id="progress-bar"><div class="progress-fill"></div></div>
+        <span id="typing-indicator"></span>
+        <span id="action-status"></span>
     </div>
-
-    <div class="input-panel" id="input-panel">
+    <div class="input-panel">
         <input type="text" id="text-input" placeholder="Сообщение...">
-        <button onclick="sendText()" title="Отправить">➤</button>
+        <button onclick="sendText()">➤</button>
         <button class="record" id="record-btn" onclick="toggleRecord()">🎤</button>
-        <button onclick="selectImage()">🖼️</button>
-        <button onclick="selectFile()">📎</button>
+        <button onclick="document.getElementById('image-input').click()">🖼️</button>
+        <button onclick="document.getElementById('file-input').click()">📎</button>
         <input type="file" id="image-input" accept="image/*" style="display:none;" onchange="sendImage(this)">
         <input type="file" id="file-input" style="display:none;" onchange="sendFile(this)">
     </div>
 
-    <!-- Замените URL на адрес вашего сервера на Render -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
-        // ⚠️ ЗАМЕНИТЕ ЭТОТ URL НА ВАШ РЕАЛЬНЫЙ АДРЕС RENDER
-        const SERVER_URL = "https://ваш-сервис.onrender.com";
-        const socket = io(SERVER_URL, { transports: ['websocket', 'polling'] });
+        // ====== НАСТРОЙКИ ======
+        const socket = io(); // автоматически подключается к текущему хосту
+        const messagesDiv = document.getElementById('messages');
+        const textInput = document.getElementById('text-input');
+        const usernameInput = document.getElementById('username');
+        const recordBtn = document.getElementById('record-btn');
+        const typingIndicator = document.getElementById('typing-indicator');
+        const actionStatus = document.getElementById('action-status');
+        const onlineUsersSpan = document.getElementById('online-users');
+        const themeToggle = document.getElementById('theme-toggle');
 
-        // ... (оставшаяся часть JavaScript полностью соответствует предыдущему рабочему коду)
-        // Здесь должны быть все функции: sendText, toggleRecord, sendImage, sendFile, addMessage, requestNotificationPermission и т.д.
-        // Вставьте их из последней версии index.html, которую я давал, без изменений.
+        let localUsername = usernameInput.value.trim() || 'Гость';
+        let notificationsEnabled = false;
+        let micPermissionGranted = false;
+        let mediaRecorder, audioChunks = [], isRecording = false;
+        let typingTimer;
+
+        // ====== ТЕМА ======
+        function applyTheme(theme) {
+            document.body.classList.toggle('dark-theme', theme === 'dark');
+            themeToggle.textContent = theme === 'dark' ? '☀️' : '🌙';
+            localStorage.setItem('theme', theme);
+        }
+        themeToggle.onclick = () => applyTheme(document.body.classList.contains('dark-theme') ? 'light' : 'dark');
+        applyTheme(localStorage.getItem('theme') || 'light');
+
+        // ====== УВЕДОМЛЕНИЯ ======
+        function requestNotificationPermission() {
+            if (!('Notification' in window)) return alert('Браузер не поддерживает уведомления');
+            if (Notification.permission === 'granted') {
+                notificationsEnabled = true;
+                alert('Уведомления уже включены');
+                return;
+            }
+            if (Notification.permission === 'denied') {
+                alert('Уведомления заблокированы. Разрешите их в настройках браузера для этого сайта.');
+                return;
+            }
+            Notification.requestPermission().then(p => {
+                notificationsEnabled = p === 'granted';
+                if (p === 'granted') alert('Уведомления включены!');
+                else if (p === 'denied') alert('Запрос отклонён.');
+            });
+        }
+        if ('Notification' in window && Notification.permission === 'granted') {
+            notificationsEnabled = true;
+        } else if ('Notification' in window && Notification.permission === 'default') {
+            // Автоматический запрос при загрузке (можно закомментировать, если не нужно)
+            // setTimeout(requestNotificationPermission, 1000);
+        }
+
+        function notifyIfHidden(username, type, preview) {
+            if (document.hidden && notificationsEnabled) {
+                try { new Notification(`${username}: ${type}`, { body: preview.substring(0, 100) }); } catch(e) {}
+            }
+            if (document.hidden) {
+                document.title = '🔔 Новое сообщение';
+                setTimeout(() => { if (!document.hidden) document.title = 'PyMessenger'; }, 2000);
+            }
+        }
+
+        // ====== МИКРОФОН ======
+        async function ensureMicPermission() {
+            if (micPermissionGranted) return true;
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                stream.getTracks().forEach(t => t.stop());
+                micPermissionGranted = true;
+                return true;
+            } catch (e) {
+                alert('Нет доступа к микрофону. Разрешите запись аудио в настройках приложения.');
+                return false;
+            }
+        }
+
+        // ====== ФОРМАТИРОВАНИЕ ======
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024*1024) return (bytes/1024).toFixed(1)+' КБ';
+            return (bytes/(1024*1024)).toFixed(1)+' МБ';
+        }
+        function getTime() {
+            const d = new Date();
+            return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+        }
+
+        // ====== ОТОБРАЖЕНИЕ СООБЩЕНИЙ ======
+        function addMessage(type, username, content, extra) {
+            const div = document.createElement('div');
+            div.className = 'message';
+            const isMy = (username === localUsername);
+            if (type === 'system') {
+                div.classList.add('system');
+                div.innerHTML = `${content} <span class="time">${getTime()}</span>`;
+            } else {
+                div.classList.add(isMy ? 'my' : 'other');
+                if (!isMy && username) div.innerHTML += `<span class="sender">${escapeHtml(username)}</span>`;
+                if (type === 'text') {
+                    div.innerHTML += `<span class="text">${escapeHtml(content)}</span>`;
+                    notifyIfHidden(username, 'сообщение', content.substring(0, 100));
+                } else if (type === 'voice') {
+                    div.innerHTML += '🎤 Голосовое сообщение';
+                    const audio = document.createElement('audio');
+                    audio.controls = true;
+                    audio.src = "data:audio/webm;base64," + content;
+                    div.appendChild(audio);
+                    notifyIfHidden(username, 'голосовое', '');
+                } else if (type === 'image') {
+                    div.innerHTML += '📷 Фото';
+                    const img = document.createElement('img');
+                    img.src = `data:${extra.mime};base64,${content}`;
+                    div.appendChild(img);
+                    notifyIfHidden(username, 'фото', '');
+                } else if (type === 'file') {
+                    div.innerHTML += `📎 ${escapeHtml(extra.filename)} (${formatSize(extra.size)})`;
+                    const a = document.createElement('a');
+                    a.href = `data:${extra.mime};base64,${content}`;
+                    a.download = extra.filename;
+                    a.className = 'file-link';
+                    a.textContent = 'Скачать';
+                    div.appendChild(a);
+                    notifyIfHidden(username, 'файл', extra.filename);
+                }
+                div.innerHTML += `<span class="time">${getTime()}</span>`;
+            }
+            messagesDiv.appendChild(div);
+            document.getElementById('chat-container').scrollTop = document.getElementById('chat-container').scrollHeight;
+        }
+
+        // ====== ОТПРАВКА ТЕКСТА ======
+        function sendText() {
+            const text = textInput.value.trim();
+            if (!text) return;
+            socket.emit('text_message', { username: localUsername, text });
+            socket.emit('typing', { username: localUsername, typing: false });
+            textInput.value = '';
+        }
+        textInput.addEventListener('input', () => {
+            const typing = textInput.value.trim().length > 0;
+            socket.emit('typing', { username: localUsername, typing });
+            clearTimeout(typingTimer);
+            if (typing) typingTimer = setTimeout(() => socket.emit('typing', { username: localUsername, typing: false }), 3000);
+        });
+        textInput.addEventListener('keypress', e => { if (e.key==='Enter') sendText(); });
+
+        // ====== ГОЛОСОВЫЕ ======
+        async function toggleRecord() {
+            if (!isRecording) {
+                if (!(await ensureMicPermission())) return;
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    mediaRecorder.ondataavailable = e => { if (e.data.size>0) audioChunks.push(e.data); };
+                    mediaRecorder.onstop = () => {
+                        const blob = new Blob(audioChunks, {type:'audio/webm'});
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            const base64 = reader.result.split(',')[1];
+                            socket.emit('voice_message', { username: localUsername, audio: base64 });
+                            actionStatus.textContent = '';
+                            actionStatus.classList.remove('shimmer');
+                        };
+                        reader.readAsDataURL(blob);
+                        stream.getTracks().forEach(t=>t.stop());
+                    };
+                    mediaRecorder.start();
+                    isRecording = true;
+                    recordBtn.textContent = '⏹';
+                    recordBtn.classList.add('recording');
+                    actionStatus.textContent = `${localUsername} записывает аудио...`;
+                    actionStatus.classList.add('shimmer');
+                    socket.emit('action_status', { username: localUsername, action: 'recording' });
+                } catch (err) {
+                    alert('Ошибка записи: ' + err.message);
+                }
+            } else {
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+                isRecording = false;
+                recordBtn.textContent = '🎤';
+                recordBtn.classList.remove('recording');
+                actionStatus.textContent = '';
+                actionStatus.classList.remove('shimmer');
+                socket.emit('action_status', { username: localUsername, action: '' });
+            }
+        }
+
+        // ====== ФОТО ======
+        const MAX_PHOTO_MB = 50, TARGET_BASE64_MB = 4.5, MAX_PX = 2048;
+        function sendImage(input) {
+            const file = input.files[0];
+            if (!file) return;
+            if (file.size > MAX_PHOTO_MB*1024*1024) {
+                alert(`Максимум ${MAX_PHOTO_MB} МБ`);
+                input.value = '';
+                return;
+            }
+            actionStatus.textContent = `${localUsername} отправляет фото...`;
+            actionStatus.classList.add('shimmer');
+            socket.emit('action_status', { username: localUsername, action: 'sending_photo' });
+            compressImage(file, blob => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const base64 = reader.result.split(',')[1];
+                    socket.emit('image_message', { username: localUsername, image: base64, mime: file.type||'image/jpeg' });
+                    actionStatus.textContent = '';
+                    actionStatus.classList.remove('shimmer');
+                };
+                reader.onerror = () => { actionStatus.textContent=''; actionStatus.classList.remove('shimmer'); };
+                reader.readAsDataURL(blob);
+            });
+        }
+        function compressImage(file, callback) {
+            const img = new Image();
+            const url = URL.createObjectURL(file);
+            img.onload = () => {
+                URL.revokeObjectURL(url);
+                let { width, height } = img;
+                if (width > MAX_PX || height > MAX_PX) {
+                    if (width>height) { height = height/width*MAX_PX; width = MAX_PX; }
+                    else { width = width/height*MAX_PX; height = MAX_PX; }
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width; canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                const tryQuality = q => {
+                    canvas.toBlob(blob => {
+                        if (!blob) { canvas.toBlob(fb => callback(fb), 'image/jpeg', 0.4); return; }
+                        const est = blob.size*1.37/(1024*1024);
+                        if (est <= TARGET_BASE64_MB || q <= 0.2) callback(blob);
+                        else tryQuality(Math.max(0.2, q-0.1));
+                    }, 'image/jpeg', q);
+                };
+                tryQuality(0.7);
+            };
+            img.src = url;
+        }
+
+        // ====== ФАЙЛЫ ======
+        function sendFile(input) {
+            const file = input.files[0];
+            if (!file) return;
+            if (file.size > 10*1024*1024) {
+                alert('Максимум 10 МБ');
+                input.value = '';
+                return;
+            }
+            actionStatus.textContent = `${localUsername} отправляет файл...`;
+            actionStatus.classList.add('shimmer');
+            socket.emit('action_status', { username: localUsername, action: 'sending_file' });
+            const reader = new FileReader();
+            reader.onload = () => {
+                const base64 = reader.result.split(',')[1];
+                socket.emit('file_message', {
+                    username: localUsername, filename: file.name,
+                    file_data: base64, mime: file.type||'application/octet-stream', size: file.size
+                });
+                actionStatus.textContent = '';
+                actionStatus.classList.remove('shimmer');
+            };
+            reader.onerror = () => { actionStatus.textContent=''; actionStatus.classList.remove('shimmer'); };
+            reader.readAsDataURL(file);
+        }
+
+        // ====== РЕГИСТРАЦИЯ ======
+        usernameInput.addEventListener('change', () => {
+            localUsername = usernameInput.value.trim() || 'Гость';
+            socket.emit('register', { username: localUsername });
+        });
+        socket.on('connect', () => {
+            localUsername = usernameInput.value.trim() || 'Гость';
+            socket.emit('register', { username: localUsername });
+        });
+        socket.on('update_user_list', users => {
+            onlineUsersSpan.innerHTML = '';
+            users.forEach(u => {
+                if (u !== localUsername) {
+                    const span = document.createElement('span');
+                    span.textContent = u;
+                    onlineUsersSpan.appendChild(span);
+                }
+            });
+        });
+
+        // ====== ИСТОРИЯ ======
+        socket.on('text_history', msgs => msgs.forEach(m => addMessage('text', m.username, m.text)));
+
+        // ====== ИНДИКАТОРЫ ======
+        socket.on('typing', data => {
+            typingIndicator.textContent = data.typing ? `${data.username} печатает...` : '';
+            if (data.typing) typingIndicator.classList.add('shimmer');
+            else typingIndicator.classList.remove('shimmer');
+        });
+        socket.on('action_status', data => {
+            if (data.username === localUsername) return;
+            if (data.action === 'recording') {
+                actionStatus.textContent = `${data.username} записывает аудио...`;
+                actionStatus.classList.add('shimmer');
+            } else if (data.action === 'sending_photo') {
+                actionStatus.textContent = `${data.username} отправляет фото...`;
+                actionStatus.classList.add('shimmer');
+            } else if (data.action === 'sending_file') {
+                actionStatus.textContent = `${data.username} отправляет файл...`;
+                actionStatus.classList.add('shimmer');
+            } else {
+                actionStatus.textContent = '';
+                actionStatus.classList.remove('shimmer');
+            }
+        });
+
+        // ====== ПРИЁМ СООБЩЕНИЙ ======
+        socket.on('text_message', d => addMessage('text', d.username, d.text));
+        socket.on('voice_message', d => {
+            addMessage('voice', d.username, d.audio);
+            if (d.username === localUsername) {
+                actionStatus.textContent = '';
+                actionStatus.classList.remove('shimmer');
+            }
+        });
+        socket.on('image_message', d => {
+            addMessage('image', d.username, d.image, { mime: d.mime });
+            if (d.username === localUsername) {
+                actionStatus.textContent = '';
+                actionStatus.classList.remove('shimmer');
+            }
+        });
+        socket.on('file_message', d => {
+            addMessage('file', d.username, d.file_data, { filename: d.filename, mime: d.mime, size: d.size });
+            if (d.username === localUsername) {
+                actionStatus.textContent = '';
+                actionStatus.classList.remove('shimmer');
+            }
+        });
+        socket.on('user_joined', d => addMessage('system', '', d.msg));
+        socket.on('user_left', d => addMessage('system', '', d.msg));
     </script>
 </body>
 </html>
