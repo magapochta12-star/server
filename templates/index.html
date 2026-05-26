@@ -26,6 +26,7 @@
             --shadow: 0 1px 2px rgba(0,0,0,0.1);
             --radius: 12px;
             --transition: 0.2s ease;
+            --safe-area-top: env(safe-area-inset-top, 15px);
         }
         .dark-theme {
             --bg: #1f1f1f;
@@ -52,6 +53,11 @@
             transition: background var(--transition), color var(--transition);
             overflow: hidden;
             -webkit-tap-highlight-color: transparent;
+            padding-top: var(--safe-area-top);
+        }
+        /* Добавляем отступ сверху для всех элементов, которые должны быть ниже статус-бара */
+        .header, .user-settings, #user-list {
+            padding-top: calc(15px + var(--safe-area-top));
         }
         .header {
             display: flex; align-items: center; justify-content: space-between;
@@ -173,7 +179,8 @@
             background: var(--surface); padding: 8px 12px;
             border-top: 1px solid var(--border); display: flex; gap: 6px;
             align-items: center; box-shadow: 0 -1px 4px rgba(0,0,0,0.05);
-            z-index: 10; margin-bottom: 0;
+            z-index: 10;
+            padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
         }
         #text-input {
             flex: 1; padding: 8px 12px; border: 1px solid var(--border);
@@ -191,7 +198,9 @@
         .input-panel button.record { background: #e74c3c; }
 
         @media (max-width: 500px) {
-            .input-panel { margin-bottom: 75px; }
+            .header, .user-settings, #user-list {
+                padding-top: calc(15px + var(--safe-area-top));
+            }
             .header { padding: 6px 10px; }
             .header h2 { font-size: 1.1em; }
             .theme-toggle { font-size: 1.2em; }
@@ -257,6 +266,24 @@
                 .then(reg => console.log('Service Worker зарегистрирован'))
                 .catch(err => console.error('Ошибка регистрации Service Worker', err));
         }
+
+        // ========== Запрос разрешений при старте (микрофон, камера, файлы) ==========
+        async function requestMediaPermissions() {
+            try {
+                // Запрашиваем доступ к микрофону (и камере, если нужно)
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                // Если разрешение получено, останавливаем треки сразу, они не нужны сейчас
+                stream.getTracks().forEach(track => track.stop());
+                console.log('Разрешение на микрофон получено');
+            } catch (err) {
+                console.warn('Разрешение на микрофон не получено:', err);
+                // Не блокируем работу, пользователь сможет дать разрешение позже при записи голосового
+            }
+            // Разрешение на файлы (фото/файлы) не требует явного запроса, оно запрашивается при выборе файла
+        }
+
+        // Вызываем при загрузке страницы
+        requestMediaPermissions();
 
         // ========== Основной код мессенджера ==========
         const socket = io();
