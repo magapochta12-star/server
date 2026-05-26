@@ -139,7 +139,7 @@
             #text-input { font-size: 0.85em; }
         }
 
-        /* Галерея (полноэкранный просмотр) */
+        /* Галерея */
         .gallery-overlay {
             display: none;
             position: fixed;
@@ -211,7 +211,6 @@
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
-        // ====== НАСТРОЙКИ ======
         const socket = io();
         const messagesDiv = document.getElementById('messages');
         const textInput = document.getElementById('text-input');
@@ -231,7 +230,6 @@
         let typingTimer;
         let sendingPhotoCount = 0;
 
-        // ====== ТЕМА ======
         function applyTheme(theme) {
             document.body.classList.toggle('dark-theme', theme === 'dark');
             themeToggle.textContent = theme === 'dark' ? '☀️' : '🌙';
@@ -240,7 +238,6 @@
         themeToggle.onclick = () => applyTheme(document.body.classList.contains('dark-theme') ? 'light' : 'dark');
         applyTheme(localStorage.getItem('theme') || 'light');
 
-        // ====== ГАЛЕРЕЯ ======
         function openGallery(src) {
             galleryImage.src = src;
             galleryOverlay.classList.add('active');
@@ -251,27 +248,17 @@
             setTimeout(() => { galleryImage.src = ''; }, 300);
         }
 
-        // ====== УВЕДОМЛЕНИЯ ======
         function requestNotificationPermission() {
             if (!('Notification' in window)) return alert('Браузер не поддерживает уведомления');
-            if (Notification.permission === 'granted') {
-                notificationsEnabled = true;
-                alert('Уведомления уже включены');
-                return;
-            }
-            if (Notification.permission === 'denied') {
-                alert('Уведомления заблокированы. Разрешите их в настройках браузера для этого сайта.');
-                return;
-            }
+            if (Notification.permission === 'granted') { notificationsEnabled = true; alert('Уведомления уже включены'); return; }
+            if (Notification.permission === 'denied') { alert('Уведомления заблокированы. Разрешите их в настройках браузера для этого сайта.'); return; }
             Notification.requestPermission().then(p => {
                 notificationsEnabled = p === 'granted';
                 if (p === 'granted') alert('Уведомления включены!');
                 else if (p === 'denied') alert('Запрос отклонён.');
             });
         }
-        if ('Notification' in window && Notification.permission === 'granted') {
-            notificationsEnabled = true;
-        }
+        if ('Notification' in window && Notification.permission === 'granted') notificationsEnabled = true;
 
         function notifyIfHidden(username, type, preview) {
             if (document.hidden && notificationsEnabled) {
@@ -283,7 +270,6 @@
             }
         }
 
-        // ====== МИКРОФОН ======
         async function ensureMicPermission() {
             if (micPermissionGranted) return true;
             try {
@@ -297,7 +283,6 @@
             }
         }
 
-        // ====== ФОРМАТИРОВАНИЕ ======
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
@@ -313,7 +298,6 @@
             return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
         }
 
-        // ====== ОТОБРАЖЕНИЕ СООБЩЕНИЙ ======
         function addMessage(type, username, content, extra) {
             const div = document.createElement('div');
             div.className = 'message';
@@ -357,7 +341,6 @@
             document.getElementById('chat-container').scrollTop = document.getElementById('chat-container').scrollHeight;
         }
 
-        // ====== ОТПРАВКА ТЕКСТА ======
         function sendText() {
             const text = textInput.value.trim();
             if (!text) return;
@@ -373,7 +356,6 @@
         });
         textInput.addEventListener('keypress', e => { if (e.key==='Enter') sendText(); });
 
-        // ====== ГОЛОСОВЫЕ ======
         async function toggleRecord() {
             if (!isRecording) {
                 if (!(await ensureMicPermission())) return;
@@ -415,15 +397,14 @@
             }
         }
 
-        // ====== ФОТО (МНОЖЕСТВЕННАЯ ОТПРАВКА) ======
         const MAX_PHOTO_MB = 50, TARGET_BASE64_MB = 4.5, MAX_PX = 2048;
+        const MAX_FILE_MB = 35;
 
         async function handleImageFiles(input) {
             const files = Array.from(input.files);
             if (files.length === 0) return;
             input.value = '';
 
-            // Отфильтровываем слишком большие
             const validFiles = files.filter(f => f.size <= MAX_PHOTO_MB * 1024 * 1024);
             if (validFiles.length < files.length) {
                 alert(`Некоторые файлы больше ${MAX_PHOTO_MB} МБ и не будут отправлены.`);
@@ -435,7 +416,7 @@
 
             for (let i = 0; i < validFiles.length; i++) {
                 const file = validFiles[i];
-                await processAndSendImage(file, i + 1, validFiles.length);
+                await processAndSendImage(file);
             }
 
             sendingPhotoCount = 0;
@@ -453,7 +434,7 @@
             }
         }
 
-        async function processAndSendImage(file, index, total) {
+        async function processAndSendImage(file) {
             return new Promise(resolve => {
                 compressImage(file, blob => {
                     const reader = new FileReader();
@@ -505,14 +486,19 @@
             img.src = url;
         }
 
-        // ====== ФАЙЛЫ ======
         function sendFile(input) {
             const file = input.files[0];
             if (!file) return;
-            if (file.size > 10*1024*1024) {
-                alert('Максимум 10 МБ');
+            if (file.size > MAX_FILE_MB * 1024 * 1024) {
+                alert(`Максимум ${MAX_FILE_MB} МБ`);
                 input.value = '';
                 return;
+            }
+            if (file.size > 10 * 1024 * 1024) {
+                if (!confirm(`Файл весит ${formatSize(file.size)}. Отправка может занять некоторое время. Продолжить?`)) {
+                    input.value = '';
+                    return;
+                }
             }
             actionStatus.textContent = `${localUsername} отправляет файл...`;
             actionStatus.classList.add('shimmer');
@@ -531,7 +517,6 @@
             reader.readAsDataURL(file);
         }
 
-        // ====== РЕГИСТРАЦИЯ ======
         usernameInput.addEventListener('change', () => {
             localUsername = usernameInput.value.trim() || 'Гость';
             socket.emit('register', { username: localUsername });
@@ -551,10 +536,8 @@
             });
         });
 
-        // ====== ИСТОРИЯ ======
         socket.on('text_history', msgs => msgs.forEach(m => addMessage('text', m.username, m.text)));
 
-        // ====== ИНДИКАТОРЫ ======
         socket.on('typing', data => {
             typingIndicator.textContent = data.typing ? `${data.username} печатает...` : '';
             if (data.typing) typingIndicator.classList.add('shimmer');
@@ -577,7 +560,6 @@
             }
         });
 
-        // ====== ПРИЁМ СООБЩЕНИЙ ======
         socket.on('text_message', d => addMessage('text', d.username, d.text));
         socket.on('voice_message', d => {
             addMessage('voice', d.username, d.audio);
