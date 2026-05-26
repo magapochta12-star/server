@@ -55,7 +55,6 @@
             -webkit-tap-highlight-color: transparent;
             padding-top: var(--safe-area-top);
         }
-        /* Сдвиг верхних строк на 15px + безопасная зона */
         .header, .user-settings, #user-list {
             padding-top: calc(15px + var(--safe-area-top));
         }
@@ -137,7 +136,6 @@
             border-radius: 20px; text-decoration: none; font-size: 0.85em;
         }
 
-        /* Статус-бар */
         .status-bar {
             padding: 4px 15px; background: transparent;
             display: flex; flex-direction: column; gap: 2px;
@@ -174,7 +172,6 @@
             100% { width: 100%; }
         }
 
-        /* Панель ввода — поднята на 15px */
         .input-panel {
             background: var(--surface); padding: 8px 12px;
             border-top: 1px solid var(--border); display: flex; gap: 6px;
@@ -267,7 +264,7 @@
                 .catch(err => console.error('Ошибка регистрации Service Worker', err));
         }
 
-        // ========== Запрос разрешения на микрофон ==========
+        // ========== Запрос разрешений (микрофон + уведомления) ==========
         let micPermissionGranted = false;
 
         async function requestMicrophonePermission() {
@@ -279,12 +276,45 @@
             } catch (err) {
                 console.warn('Разрешение на микрофон не получено:', err);
                 micPermissionGranted = false;
-                // Не блокируем, попросим разрешение при первом нажатии на запись
             }
         }
 
-        // Запрашиваем разрешение сразу при загрузке
+        // При загрузке страницы тихо запрашиваем микрофон (может быть заблокировано WebView)
         requestMicrophonePermission();
+
+        // ---------- Уведомления ----------
+        function requestNotificationPermission() {
+            if (!('Notification' in window)) {
+                alert('Браузер не поддерживает уведомления');
+                return;
+            }
+            if (Notification.permission === 'granted') {
+                notificationsEnabled = true;
+                alert('Уведомления уже включены');
+                return;
+            }
+            if (Notification.permission === 'denied') {
+                alert('Уведомления заблокированы. Разблокируйте в настройках браузера для этого сайта.');
+                return;
+            }
+            // permission === 'default' – запрашиваем
+            Notification.requestPermission().then(p => {
+                notificationsEnabled = p === 'granted';
+                if (p === 'granted') alert('Уведомления включены!');
+                else if (p === 'denied') alert('Запрос отклонён.');
+            }).catch(err => {
+                console.error('Ошибка запроса уведомлений:', err);
+                alert('Не удалось запросить разрешение. Проверьте настройки браузера.');
+            });
+        }
+
+        // Автоматически запрашиваем уведомления при загрузке, если разрешение ещё не спрашивали
+        if ('Notification' in window && Notification.permission === 'default') {
+            // Небольшая задержка, чтобы не мешать загрузке
+            setTimeout(() => {
+                requestNotificationPermission();
+            }, 1000);
+        }
 
         // ========== Основной код мессенджера ==========
         const socket = io();
@@ -300,6 +330,10 @@
         const themeToggle = document.getElementById('theme-toggle');
 
         let mediaRecorder, audioChunks = [], isRecording = false, notificationsEnabled = false;
+        // Инициализируем notificationsEnabled на случай, если разрешение уже дано
+        if ('Notification' in window && Notification.permission === 'granted') {
+            notificationsEnabled = true;
+        }
         let localUsername = usernameInput.value.trim() || 'Гость';
         let typingTimer;
 
@@ -312,7 +346,7 @@
         themeToggle.onclick = () => applyTheme(document.body.classList.contains('dark-theme') ? 'light' : 'dark');
         applyTheme(localStorage.getItem('theme') || 'light');
 
-        // ---------- Уведомления ----------
+        // ---------- Уведомления при новых сообщениях ----------
         function notifyIfHidden(username, type, preview) {
             if (document.hidden && notificationsEnabled && 'Notification' in window && Notification.permission === 'granted') {
                 new Notification(`${username}: ${type}`, { body: preview.substring(0, 100) });
@@ -322,24 +356,6 @@
                 setTimeout(() => { if (!document.hidden) document.title = 'PyMessenger'; }, 2000);
             }
         }
-        function requestNotificationPermission() {
-            if (!('Notification' in window)) return alert('Браузер не поддерживает уведомления');
-            if (Notification.permission === 'granted') {
-                notificationsEnabled = true;
-                alert('Уведомления уже включены');
-                return;
-            }
-            if (Notification.permission === 'denied') {
-                alert('Уведомления заблокированы. Разблокируйте в настройках браузера для этого сайта.');
-                return;
-            }
-            Notification.requestPermission().then(p => {
-                notificationsEnabled = p === 'granted';
-                if (p === 'granted') alert('Уведомления включены!');
-                else if (p === 'denied') alert('Запрос отклонён.');
-            });
-        }
-        if ('Notification' in window && Notification.permission === 'granted') notificationsEnabled = true;
 
         // ---------- Вспомогательные функции ----------
         function escapeHtml(text) {
@@ -442,10 +458,10 @@
             if (e.key === 'Enter') sendText();
         });
 
-        // ---------- Голосовые (с гарантированным запросом микрофона) ----------
+        // ---------- Голосовые (запрос микрофона при первом нажатии) ----------
         async function toggleRecord() {
             if (!isRecording) {
-                // Если разрешение ещё не получено, запрашиваем сейчас
+                // Если разрешение ещё не получено, запрашиваем сейчас (обязательно по жесту пользователя)
                 if (!micPermissionGranted) {
                     try {
                         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -493,7 +509,7 @@
             }
         }
 
-        // ---------- Фото ----------
+        // ---------- Фото (без изменений) ----------
         const MAX_ORIGINAL_MB = 50, MAX_FINAL_BASE64_MB = 4.5, TARGET_IMAGE_PX = 2048;
         function selectImage() { document.getElementById('image-input').click(); }
         function sendImage(input) {
