@@ -22,7 +22,7 @@ def handle_connect():
     emit('user_joined', {'msg': 'Кто-то присоединился'}, broadcast=True)
     for vm in voice_messages[-10:]:
         emit('voice_message', vm)
-    for im in image_messages[-10:]:
+    for im in image_messages[-20:]:
         emit('image_message', im)
     for fm in file_messages[-10:]:
         emit('file_message', fm)
@@ -54,7 +54,7 @@ def handle_text(data):
 def handle_voice(data):
     msg = {'username': data.get('username', 'Аноним'), 'audio': data['audio']}
     voice_messages.append(msg)
-    if len(voice_messages) > 50:
+    if len(voice_messages) > 10:
         voice_messages.pop(0)
     emit('voice_message', msg, broadcast=True)
 
@@ -93,7 +93,6 @@ def handle_typing(data):
 
 @socketio.on('action_status')
 def handle_action_status(data):
-    # Теперь получают все, включая отправителя — чтобы статус гарантированно очищался
     emit('action_status', {
         'username': data.get('username', 'Аноним'),
         'action': data.get('action', '')
