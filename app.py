@@ -1,30 +1,65 @@
 import os
+import json
+import hashlib
 import base64
+import secrets
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit
 from collections import deque
 
 app = Flask(__name__)
-# Фиксированный секрет: сессии не слетают при рестарте
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'change-this-in-production-env-var')
-# Убран unsafe werkzeug, добавлен max_http_buffer_size под лимиты
-socketio = SocketIO(
-    app, async_mode='threading',
-    cors_allowed_origins='*',
-    max_http_buffer_size=40 * 1024 * 1024  # 40 МБ — запас под фото
-)
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(32))
+socketio = SocketIO(app, async_mode='threading', cors_allowed_origins='*',
+                    max_http_buffer_size=40 * 1024 * 1024)
 
-MAX_TEXT = 100
-MAX_VOICE = 10
-MAX_IMAGE = 20
-MAX_FILE = 10
-
-# Храним base64-строки — они безопасно сериализуются Socket.IO при рестарте
+MAX_TEXT, MAX_VOICE, MAX_IMAGE, MAX_FILE = 100, 10, 20, 10
 voice_messages = deque(maxlen=MAX_VOICE)
 image_messages = deque(maxlen=MAX_IMAGE)
 file_messages = deque(maxlen=MAX_FILE)
 text_messages = deque(maxlen=MAX_TEXT)
+
+# Онлайн: {socket_sid: username}
 connected_users = {}
+# Активные сессии: {client_id: username}
+active_sessions = {}
+
+# Файл пользователей
+USERS_FILE = os.path.join(os.path.dirname(__file__), 'users.json')
+users_db = {}
+
+def load_db():
+    global users_db
+    try:
+        if os.path.exists(USERS_FILE):
+            with open(USERS_FILE, 'r', encoding='utf-8') as f:
+                users_db = json.load(f)
+    except Exception:
+        users_db = {}
+
+def save_db():
+    try:
+        with open(USERS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(users_db, f, ensure_ascii=False)
+    except Exception as e:
+        print(f"Ошибка сохранения: {e}")
+
+load_db()
+
+def hash_password(password, salt=None):
+    if salt is None:
+        salt = secrets.token_hex(16)
+    h = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100_000).hex()
+    return h, salt
+
+def verify_password(password, stored_hash, salt):
+    h, _ = hash_password(password, salt)
+    return h == stored_hash
+
+def safe_avatar_b64(data):
+    """Сжимаем аватарку до разумного размера для хранения"""
+    if isinstance(data, bytes):
+        return base64.b64encode(data).decode('ascii')
+    return data
 
 @app.route('/')
 def index():
@@ -32,7 +67,7 @@ def index():
 
 @socketio.on('connect')
 def handle_connect():
-    emit('user_joined', {'msg': 'Кто-то присоединился'}, broadcast=True)
+    # Восстанавливаем историю
     for vm in voice_messages: emit('voice_message', vm)
     for im in image_messages: emit('image_message', im)
     for fm in file_messages: emit('file_message', fm)
@@ -40,15 +75,109 @@ def handle_connect():
 
 @socketio.on('register')
 def handle_register(data):
-    username = data.get('username', 'Аноним')[:30].strip() or 'Аноним'
+    username = data.get('username', '').strip()[:30]
+    password = data.get('password', '')
+    client_id = data.get('client_id', request.sid)
+
+    if not username or not password:
+        emit('auth_error', {'message': 'Заполните все поля'})
+        return
+    if len(password) < 4:
+        emit('auth_error', {'message': 'Пароль минимум 4 символа'})
+        return
+    if username.lower() in [u.lower() for u in users_db.keys()]:
+        emit('auth_error', {'message': 'Этот ник уже занят'})
+        return
+
+    pw_hash, salt = hash_password(password)
+    users_db[username] = {
+        'password_hash': pw_hash,
+        'salt': salt,
+        'avatar': None
+    }
+    save_db()
+
+    active_sessions[client_id] = username
     connected_users[request.sid] = username
     emit('update_user_list', list(connected_users.values()), broadcast=True)
+    emit('auth_success', {
+        'username': username,
+        'avatar': None,
+        'client_id': client_id
+    })
+
+@socketio.on('login')
+def handle_login(data):
+    username = data.get('username', '').strip()[:30]
+    password = data.get('password', '')
+    client_id = data.get('client_id', request.sid)
+
+    if not username or not password:
+        emit('auth_error', {'message': 'Заполните все поля'})
+        return
+
+    user = users_db.get(username)
+    if not user:
+        emit('auth_error', {'message': 'Пользователь не найден'})
+        return
+
+    if not verify_password(password, user['password_hash'], user['salt']):
+        emit('auth_error', {'message': 'Неверный пароль'})
+        return
+
+    active_sessions[client_id] = username
+    connected_users[request.sid] = username
+    emit('update_user_list', list(connected_users.values()), broadcast=True)
+    emit('auth_success', {
+        'username': username,
+        'avatar': user.get('avatar'),
+        'client_id': client_id
+    })
+
+@socketio.on('check_session')
+def handle_check_session(data):
+    client_id = data.get('client_id')
+    if client_id and client_id in active_sessions:
+        username = active_sessions[client_id]
+        user = users_db.get(username, {})
+        emit('auth_success', {
+            'username': username,
+            'avatar': user.get('avatar'),
+            'client_id': client_id
+        })
+    else:
+        emit('session_expired')
+
+@socketio.on('set_avatar')
+def handle_set_avatar(data):
+    username = data.get('username')
+    avatar_data = data.get('avatar')
+    if not username or username not in users_db:
+        return
+    # avatar_data может быть bytes или строкой
+    if isinstance(avatar_data, bytes):
+        avatar_b64 = base64.b64encode(avatar_data).decode('ascii')
+    else:
+        avatar_b64 = avatar_data
+    users_db[username]['avatar'] = avatar_b64
+    save_db()
+    emit('avatar_updated', {'username': username, 'avatar': avatar_b64}, broadcast=True)
+
+@socketio.on('get_user_avatars')
+def handle_get_avatars(data):
+    usernames = data.get('usernames', [])
+    result = {}
+    for u in usernames:
+        if u in users_db:
+            result[u] = users_db[u].get('avatar')
+    emit('user_avatars', result)
 
 @socketio.on('disconnect')
 def handle_disconnect():
     username = connected_users.pop(request.sid, None)
-    emit('user_left', {'msg': f'{username or "Кто-то"} вышел'}, broadcast=True)
-    emit('update_user_list', list(connected_users.values()), broadcast=True)
+    if username:
+        emit('user_left', {'msg': f'{username} вышел'}, broadcast=True)
+        emit('update_user_list', list(connected_users.values()), broadcast=True)
 
 @socketio.on('text_message')
 def handle_text(data):
