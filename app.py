@@ -20,8 +20,12 @@ image_messages = deque(maxlen=MAX_IMAGE)
 file_messages = deque(maxlen=MAX_FILE)
 text_messages = deque(maxlen=MAX_TEXT)
 
+# ✅ НОВОЕ: личные сообщения
+private_messages = deque(maxlen=200)
+
 connected_users = {}
 active_sessions = {}
+username_to_sid = {}  # ✅ НОВОЕ: маппинг ник -> sid для отправки ЛС
 users_db = {}
 
 # ===== JSONBIN CLOUD =====
@@ -122,6 +126,7 @@ def make_msg_id():
 def index():
     return render_template('index.html')
 
+# ===== AUTH =====
 @socketio.on('connect')
 def handle_connect():
     for vm in voice_messages: emit('voice_message', vm)
@@ -151,6 +156,7 @@ def handle_register(data):
 
     active_sessions[client_id] = username
     connected_users[request.sid] = username
+    username_to_sid[username] = request.sid
     emit('update_user_list', list(connected_users.values()), broadcast=True)
     emit('auth_success', {'username': username, 'avatar': None, 'client_id': client_id})
 
@@ -174,6 +180,7 @@ def handle_login(data):
 
     active_sessions[client_id] = username
     connected_users[request.sid] = username
+    username_to_sid[username] = request.sid
     emit('update_user_list', list(connected_users.values()), broadcast=True)
     emit('auth_success', {'username': username, 'avatar': user.get('avatar'), 'client_id': client_id})
 
@@ -183,6 +190,9 @@ def handle_check_session(data):
     if client_id and client_id in active_sessions:
         username = active_sessions[client_id]
         user = users_db.get(username, {})
+        connected_users[request.sid] = username
+        username_to_sid[username] = request.sid
+        emit('update_user_list', list(connected_users.values()), broadcast=True)
         emit('auth_success', {'username': username, 'avatar': user.get('avatar'), 'client_id': client_id})
     else:
         emit('session_expired')
@@ -214,9 +224,11 @@ def handle_get_avatars(data):
 def handle_disconnect():
     username = connected_users.pop(request.sid, None)
     if username:
+        username_to_sid.pop(username, None)
         emit('user_left', {'msg': f'{username} вышел'}, broadcast=True)
         emit('update_user_list', list(connected_users.values()), broadcast=True)
 
+# ===== ОБЩИЕ СООБЩЕНИЯ =====
 @socketio.on('text_message')
 def handle_text(data):
     msg = {
@@ -228,11 +240,65 @@ def handle_text(data):
     text_messages.append(msg)
     emit('text_message', msg, broadcast=True)
 
+# ✅ НОВОЕ: ЛИЧНЫЕ СООБЩЕНИЯ
+@socketio.on('private_message')
+def handle_private(data):
+    sender = data.get('username', 'Аноним')
+    recipient = data.get('to', '')
+    text = str(data.get('text', ''))[:2000]
+    
+    if not recipient or not text:
+        return
+    
+    msg = {
+        'id': make_msg_id(),
+        'from': sender,
+        'to': recipient,
+        'text': text,
+        'edited': False
+    }
+    private_messages.append(msg)
+    
+    # Отправляем отправителю (для подтверждения)
+    emit('private_message', msg)
+    
+    # Отправляем получателю если онлайн
+    recipient_sid = username_to_sid.get(recipient)
+    if recipient_sid:
+        emit('private_message', msg, room=recipient_sid)
+
+@socketio.on('get_private_history')
+def handle_get_private_history(data):
+    username = data.get('username')
+    if not username:
+        return
+    history = [m for m in private_messages if m['from'] == username or m['to'] == username]
+    emit('private_history', history)
+
 @socketio.on('edit_message')
 def handle_edit(data):
     msg_id = data.get('msg_id')
     new_text = str(data.get('text', ''))[:2000]
     username = data.get('username')
+    is_private = data.get('is_private', False)
+    
+    if is_private:
+        for msg in private_messages:
+            if msg.get('id') == msg_id:
+                if msg['from'] != username:
+                    emit('error_msg', {'message': 'Можно редактировать только свои сообщения'})
+                    return
+                msg['text'] = new_text
+                msg['edited'] = True
+                # Отправляем обоим участникам
+                emit('private_message_edited', {'id': msg_id, 'text': new_text, 'from': msg['from'], 'to': msg['to']})
+                recipient_sid = username_to_sid.get(msg['to'])
+                if recipient_sid:
+                    emit('private_message_edited', {'id': msg_id, 'text': new_text, 'from': msg['from'], 'to': msg['to']}, room=recipient_sid)
+                return
+        emit('error_msg', {'message': 'Сообщение не найдено'})
+        return
+    
     for msg in text_messages:
         if msg.get('id') == msg_id:
             if msg['username'] != username:
@@ -248,6 +314,23 @@ def handle_edit(data):
 def handle_delete(data):
     msg_id = data.get('msg_id')
     username = data.get('username')
+    is_private = data.get('is_private', False)
+    
+    if is_private:
+        for msg in private_messages:
+            if msg.get('id') == msg_id:
+                if msg['from'] != username:
+                    emit('error_msg', {'message': 'Можно удалять только свои сообщения'})
+                    return
+                private_messages.remove(msg)
+                emit('message_deleted', {'id': msg_id})
+                recipient_sid = username_to_sid.get(msg['to'])
+                if recipient_sid:
+                    emit('message_deleted', {'id': msg_id}, room=recipient_sid)
+                return
+        emit('error_msg', {'message': 'Сообщение не найдено'})
+        return
+    
     for msg in text_messages:
         if msg.get('id') == msg_id:
             if msg['username'] != username:
