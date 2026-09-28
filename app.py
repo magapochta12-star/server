@@ -31,7 +31,7 @@ JSONBIN_URL = f'https://api.jsonbin.io/v3/b/{JSONBIN_ID}'
 
 def save_to_cloud():
     if not JSONBIN_ID or not JSONBIN_KEY:
-        print("⚠️ JSONBIN_ID или JSONBIN_KEY не заданы")
+        print("⚠️ JSONBIN_ID или JSONBIN_KEY не заданы", flush=True)
         return
     try:
         data_to_save = {}
@@ -49,11 +49,11 @@ def save_to_cloud():
             timeout=10
         )
         if resp.status_code == 200:
-            print(f"💾 Сохранено в облако: {len(data_to_save)} пользователей")
+            print(f"💾 Сохранено в облако: {len(data_to_save)} пользователей", flush=True)
         else:
-            print(f"❌ Ошибка облака: {resp.status_code} - {resp.text[:200]}")
+            print(f"❌ Ошибка облака: {resp.status_code} - {resp.text[:200]}", flush=True)
     except Exception as e:
-        print(f"❌ Ошибка сохранения в облако: {e}")
+        print(f"❌ Ошибка сохранения в облако: {e}", flush=True)
 
 def load_from_cloud():
     global users_db
@@ -74,24 +74,24 @@ def load_from_cloud():
                         users_db[username]['salt'] = user_data.get('salt')
                     else:
                         users_db[username] = user_data
-                print(f"✅ Загружено {len(users_db)} пользователей из облака")
+                print(f"✅ Загружено {len(users_db)} пользователей из облака", flush=True)
                 return True
     except Exception as e:
-        print(f"❌ Ошибка загрузки из облака: {e}")
+        print(f"❌ Ошибка загрузки из облака: {e}", flush=True)
     return False
 
-# Локальный файл как запасной
 USERS_FILE = os.path.join(os.path.dirname(__file__), 'users.json')
 
 def load_db():
     global users_db
+    print("🚀 Загрузка базы данных...", flush=True)
     if load_from_cloud():
         return
     try:
         if os.path.exists(USERS_FILE):
             with open(USERS_FILE, 'r', encoding='utf-8') as f:
                 users_db = json.load(f)
-            print("📁 Загружено из локального файла")
+            print("📁 Загружено из локального файла", flush=True)
     except Exception:
         users_db = {}
 
@@ -101,11 +101,10 @@ def save_db():
         with open(USERS_FILE, 'w', encoding='utf-8') as f:
             json.dump(users_db, f, ensure_ascii=False)
     except Exception as e:
-        print(f"Ошибка локального сохранения: {e}")
+        print(f"Ошибка локального сохранения: {e}", flush=True)
 
 load_db()
 
-# ===== HELPERS =====
 def hash_password(password, salt=None):
     if salt is None:
         salt = secrets.token_hex(16)
@@ -119,12 +118,10 @@ def verify_password(password, stored_hash, salt):
 def make_msg_id():
     return str(uuid.uuid4())
 
-# ===== ROUTES =====
 @app.route('/')
 def index():
     return render_template('index.html')
 
-# ===== AUTH =====
 @socketio.on('connect')
 def handle_connect():
     for vm in voice_messages: emit('voice_message', vm)
@@ -220,7 +217,6 @@ def handle_disconnect():
         emit('user_left', {'msg': f'{username} вышел'}, broadcast=True)
         emit('update_user_list', list(connected_users.values()), broadcast=True)
 
-# ===== MESSAGES =====
 @socketio.on('text_message')
 def handle_text(data):
     msg = {
