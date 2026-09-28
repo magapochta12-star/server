@@ -20,12 +20,12 @@ image_messages = deque(maxlen=MAX_IMAGE)
 file_messages = deque(maxlen=MAX_FILE)
 text_messages = deque(maxlen=MAX_TEXT)
 
-# ✅ НОВОЕ: личные сообщения
+# Личные сообщения
 private_messages = deque(maxlen=200)
 
 connected_users = {}
 active_sessions = {}
-username_to_sid = {}  # ✅ НОВОЕ: маппинг ник -> sid для отправки ЛС
+username_to_sid = {}
 users_db = {}
 
 # ===== JSONBIN CLOUD =====
@@ -109,6 +109,7 @@ def save_db():
 
 load_db()
 
+# ===== HELPERS =====
 def hash_password(password, salt=None):
     if salt is None:
         salt = secrets.token_hex(16)
@@ -122,6 +123,7 @@ def verify_password(password, stored_hash, salt):
 def make_msg_id():
     return str(uuid.uuid4())
 
+# ===== ROUTES =====
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -240,7 +242,7 @@ def handle_text(data):
     text_messages.append(msg)
     emit('text_message', msg, broadcast=True)
 
-# ✅ НОВОЕ: ЛИЧНЫЕ СООБЩЕНИЯ
+# ===== ЛИЧНЫЕ СООБЩЕНИЯ =====
 @socketio.on('private_message')
 def handle_private(data):
     sender = data.get('username', 'Аноним')
@@ -259,10 +261,7 @@ def handle_private(data):
     }
     private_messages.append(msg)
     
-    # Отправляем отправителю (для подтверждения)
     emit('private_message', msg)
-    
-    # Отправляем получателю если онлайн
     recipient_sid = username_to_sid.get(recipient)
     if recipient_sid:
         emit('private_message', msg, room=recipient_sid)
@@ -275,6 +274,7 @@ def handle_get_private_history(data):
     history = [m for m in private_messages if m['from'] == username or m['to'] == username]
     emit('private_history', history)
 
+# ===== РЕДАКТИРОВАНИЕ =====
 @socketio.on('edit_message')
 def handle_edit(data):
     msg_id = data.get('msg_id')
@@ -290,11 +290,11 @@ def handle_edit(data):
                     return
                 msg['text'] = new_text
                 msg['edited'] = True
-                # Отправляем обоим участникам
-                emit('private_message_edited', {'id': msg_id, 'text': new_text, 'from': msg['from'], 'to': msg['to']})
+                payload = {'id': msg_id, 'text': new_text, 'from': msg['from'], 'to': msg['to']}
+                emit('private_message_edited', payload)
                 recipient_sid = username_to_sid.get(msg['to'])
                 if recipient_sid:
-                    emit('private_message_edited', {'id': msg_id, 'text': new_text, 'from': msg['from'], 'to': msg['to']}, room=recipient_sid)
+                    emit('private_message_edited', payload, room=recipient_sid)
                 return
         emit('error_msg', {'message': 'Сообщение не найдено'})
         return
@@ -310,6 +310,7 @@ def handle_edit(data):
             return
     emit('error_msg', {'message': 'Сообщение не найдено'})
 
+# ===== УДАЛЕНИЕ (ищет во ВСЕХ хранилищах) =====
 @socketio.on('delete_message')
 def handle_delete(data):
     msg_id = data.get('msg_id')
@@ -331,16 +332,19 @@ def handle_delete(data):
         emit('error_msg', {'message': 'Сообщение не найдено'})
         return
     
-    for msg in text_messages:
-        if msg.get('id') == msg_id:
-            if msg['username'] != username:
-                emit('error_msg', {'message': 'Можно удалять только свои сообщения'})
+    # Ищем во всех хранилищах: текст, голосовые, фото, файлы
+    for store in (text_messages, voice_messages, image_messages, file_messages):
+        for msg in store:
+            if msg.get('id') == msg_id:
+                if msg.get('username') != username:
+                    emit('error_msg', {'message': 'Можно удалять только свои сообщения'})
+                    return
+                store.remove(msg)
+                emit('message_deleted', {'id': msg_id}, broadcast=True)
                 return
-            text_messages.remove(msg)
-            emit('message_deleted', {'id': msg_id}, broadcast=True)
-            return
     emit('error_msg', {'message': 'Сообщение не найдено'})
 
+# ===== МЕДИА =====
 @socketio.on('voice_message')
 def handle_voice(data):
     audio = data['audio']
