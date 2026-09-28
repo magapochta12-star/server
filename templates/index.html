@@ -31,7 +31,7 @@ body {
     display: flex; flex-direction: column;
 }
 
-/* AUTH */
+/* ===== AUTH ===== */
 .auth-screen {
     position: fixed; inset: 0; background: var(--bg);
     display: flex; align-items: center; justify-content: center;
@@ -86,15 +86,15 @@ body {
 }
 @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
 
-/* CHAT APP */
+/* ===== CHAT APP ===== */
 .chat-app { display: none; flex-direction: column; height: 100%; animation: fadeIn 0.5s ease-out; }
 .chat-app.visible { display: flex; }
 
 .header {
     display: flex; align-items: center; gap: 12px;
-    padding: 12px 16px; background: var(--surface);
+    padding: 10px 16px; background: var(--surface);
     border-bottom: 1px solid var(--border);
-    padding-top: calc(12px + env(safe-area-inset-top, 0px)); z-index: 10;
+    padding-top: calc(10px + env(safe-area-inset-top, 0px)); z-index: 10;
 }
 .header h1 {
     font-size: 1.25em; font-weight: 600; flex: 1;
@@ -106,17 +106,19 @@ body {
     border-radius: 50%; font-size: 1.2em; cursor: pointer;
     color: var(--text); display: flex; align-items: center; justify-content: center;
     position: relative; overflow: hidden; transition: background 0.2s, transform 0.2s;
+    flex-shrink: 0;
 }
 .icon-btn:hover { background: var(--surface-2); }
 .icon-btn:active { transform: scale(0.9); }
 
-.main-layout { display: flex; flex: 1; overflow: hidden; }
+.main-layout { display: flex; flex: 1; overflow: hidden; position: relative; }
 
+/* ===== SIDEBAR ===== */
 .sidebar {
     width: 280px; background: var(--surface);
     border-right: 1px solid var(--border);
     display: flex; flex-direction: column;
-    transition: transform 0.3s ease;
+    flex-shrink: 0;
 }
 .sidebar-header {
     padding: 12px 16px; border-bottom: 1px solid var(--border);
@@ -127,16 +129,16 @@ body {
     background: var(--surface-2); display: flex; align-items: center; justify-content: center;
     font-weight: 600; color: var(--text-2); cursor: pointer; overflow: hidden;
     border: 2px solid var(--border); transition: border-color 0.2s, transform 0.2s;
+    flex-shrink: 0;
 }
 .my-avatar:hover { border-color: var(--accent); transform: scale(1.05); }
 .my-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.my-name { font-weight: 600; font-size: 0.95em; flex: 1; }
+.my-name { font-weight: 600; font-size: 0.95em; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .logout-btn {
     padding: 6px 12px; border: none;
     background: var(--surface-2); color: var(--text-2);
-    border-radius: 20px; font-size: 0.8em; cursor: pointer;
+    border-radius: 20px; font-size: 0.8em; cursor: pointer; flex-shrink: 0;
 }
-
 .chat-list { flex: 1; overflow-y: auto; }
 .chat-list-item {
     padding: 12px 16px; cursor: pointer;
@@ -146,21 +148,25 @@ body {
 }
 .chat-list-item:hover { background: var(--surface-2); }
 .chat-list-item.active { background: var(--accent); color: white; }
-.chat-list-item.active .avatar { border-color: white; }
 .chat-list-item .avatar { width: 36px; height: 36px; font-size: 0.8em; }
 
-.chat-area { flex: 1; display: flex; flex-direction: column; background: var(--bg); }
+/* ===== OVERLAY (затемнение под сайдбаром на мобильных) ===== */
+.overlay {
+    display: none; position: absolute; inset: 0;
+    background: rgba(0,0,0,0.5); z-index: 150;
+    animation: fadeIn 0.2s;
+}
+.overlay.active { display: block; }
+
+/* ===== CHAT AREA ===== */
+.chat-area { flex: 1; display: flex; flex-direction: column; background: var(--bg); min-width: 0; }
 .chat-header {
-    padding: 12px 16px; background: var(--surface);
+    padding: 10px 16px; background: var(--surface);
     border-bottom: 1px solid var(--border);
     display: flex; align-items: center; gap: 10px;
 }
-.chat-header h2 { font-size: 1.1em; flex: 1; }
-.back-btn {
-    display: none; width: 36px; height: 36px;
-    border: none; background: var(--surface-2);
-    border-radius: 50%; cursor: pointer; font-size: 1.2em;
-}
+.chat-header h2 { font-size: 1.1em; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-btn { display: none; }
 
 .chat {
     flex: 1; overflow-y: auto; overflow-x: hidden;
@@ -191,7 +197,7 @@ body.dark .chat {
 .bubble {
     padding: 8px 12px; border-radius: 16px;
     box-shadow: var(--shadow); word-wrap: break-word; word-break: break-word;
-    max-width: 100%; position: relative;
+    max-width: 100%; position: relative; min-width: 0;
 }
 .msg-row.my .bubble { background: var(--my-bubble-grad); color: var(--my-text); border-bottom-right-radius: 4px; }
 .msg-row.other .bubble { background: var(--other-bubble); border-bottom-left-radius: 4px; }
@@ -217,18 +223,21 @@ body.dark .chat {
 }
 .msg-row.my .file-link { background: rgba(0,0,0,0.1); color: var(--my-text); }
 
+/* ===== MESSAGE MENU BUTTON ===== */
 .msg-menu-btn {
-    position: absolute; top: 8px; opacity: 0;
-    width: 28px; height: 28px; border: none;
+    position: absolute; top: 50%; transform: translateY(-50%);
+    opacity: 0; width: 28px; height: 28px; border: none;
     background: var(--surface-2); border-radius: 50%;
     cursor: pointer; font-size: 0.9em;
     display: flex; align-items: center; justify-content: center;
     transition: opacity 0.2s; z-index: 10;
+    box-shadow: var(--shadow);
 }
 .msg-row.my .msg-menu-btn { left: -36px; }
 .msg-row.other .msg-menu-btn { right: -36px; }
 .msg-row:hover .msg-menu-btn { opacity: 1; }
 
+/* ===== CONTEXT MENU ===== */
 .context-menu {
     position: fixed; z-index: 5000;
     background: var(--surface); border-radius: 12px;
@@ -239,13 +248,14 @@ body.dark .chat {
 .context-menu.visible { display: block; }
 .context-menu button {
     display: flex; align-items: center; gap: 10px;
-    width: 100%; padding: 10px 16px; border: none;
-    background: none; color: var(--text); font-size: 0.9em;
+    width: 100%; padding: 12px 16px; border: none;
+    background: none; color: var(--text); font-size: 0.95em;
     cursor: pointer; transition: background 0.15s; text-align: left;
 }
 .context-menu button:hover { background: var(--surface-2); }
 .context-menu button.danger { color: var(--danger); }
 
+/* ===== EDIT BAR ===== */
 .edit-bar {
     display: none; padding: 8px 16px; background: var(--surface);
     border-top: 1px solid var(--border); font-size: 0.85em; color: var(--accent);
@@ -271,6 +281,8 @@ body.dark .chat {
     animation: shimmer 2s infinite linear;
 }
 @keyframes shimmer { to { background-position: -200% 0; } }
+
+/* ===== INPUT BAR ===== */
 .input-bar {
     display: flex; align-items: center; gap: 6px;
     padding: 8px 12px; background: var(--surface);
@@ -278,7 +290,7 @@ body.dark .chat {
     padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
 }
 #text-input {
-    flex: 1; padding: 10px 16px; border: none; border-radius: 22px;
+    flex: 1; min-width: 0; padding: 10px 16px; border: none; border-radius: 22px;
     background: var(--surface-2); color: var(--text); font-size: 0.95em; outline: none;
 }
 .send-btn {
@@ -286,6 +298,7 @@ body.dark .chat {
     background: var(--accent); color: white; font-size: 1.2em; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     box-shadow: var(--shadow-lg); transition: transform 0.2s; position: relative; overflow: hidden;
+    flex-shrink: 0;
 }
 .send-btn:active { transform: scale(0.9); }
 .record-btn.recording { background: var(--danger); animation: pulse 1.2s infinite; }
@@ -295,6 +308,8 @@ body.dark .chat {
     transform: scale(0); animation: rippleAnim 0.6s linear; pointer-events: none;
 }
 @keyframes rippleAnim { to { transform: scale(4); opacity: 0; } }
+
+/* ===== GALLERY / AVATAR MODAL ===== */
 .gallery {
     display: none; position: fixed; inset: 0;
     background: rgba(0,0,0,0.95); z-index: 1000;
@@ -318,6 +333,7 @@ body.dark .chat {
 .avatar-modal-content {
     background: var(--surface); border-radius: 20px; padding: 24px; text-align: center;
     animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    width: min(90%, 320px);
 }
 .avatar-preview {
     width: 100px; height: 100px; border-radius: 50%; margin: 0 auto 16px;
@@ -325,7 +341,7 @@ body.dark .chat {
     display: flex; align-items: center; justify-content: center;
 }
 .avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
-.avatar-modal-btns { display: flex; gap: 10px; justify-content: center; }
+.avatar-modal-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .avatar-modal-btns button {
     padding: 10px 20px; border: none; border-radius: 12px;
     cursor: pointer; font-size: 0.9em; font-weight: 600;
@@ -344,16 +360,52 @@ body.dark .chat {
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
 .avatar.lg { width: 40px; height: 40px; font-size: 0.85em; }
 
+/* =====================================================
+   📱 МОБИЛЬНАЯ АДАПТАЦИЯ (код сам определяет устройство)
+   ===================================================== */
 @media (max-width: 768px) {
+    /* Сайдбар становится выезжающей панелью */
     .sidebar {
         position: absolute; left: 0; top: 0; bottom: 0;
-        z-index: 100; transform: translateX(-100%);
+        z-index: 200; transform: translateX(-100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: var(--shadow-lg);
+        width: min(280px, 80vw);
     }
     .sidebar.open { transform: translateX(0); }
-    .back-btn { display: flex; }
+    /* Показываем кнопку меню */
+    .menu-btn { display: flex; }
+    /* Сообщения шире */
     .msg-row { max-width: 92%; }
-    .msg-row.my .msg-menu-btn { left: auto; right: 8px; top: 8px; }
-    .msg-row.other .msg-menu-btn { right: auto; left: 8px; top: 8px; }
+    /* Кнопка меню сообщения: на тач-устройствах всегда видна полупрозрачной */
+    .msg-menu-btn { width: 26px; height: 26px; font-size: 0.8em; top: 4px; transform: none; }
+    .msg-row.my .msg-menu-btn { left: auto; right: 4px; }
+    .msg-row.other .msg-menu-btn { right: auto; left: 4px; }
+}
+/* На тач-устройствах (без hover) кнопка меню видна всегда */
+@media (hover: none) {
+    .msg-menu-btn { opacity: 0.55; }
+    .msg-row.my .msg-menu-btn { background: rgba(0,0,0,0.12); color: var(--my-text); }
+    .msg-row.other .msg-menu-btn { background: rgba(0,0,0,0.08); color: var(--text-2); }
+}
+/* Компактные кнопки на узких экранах */
+@media (max-width: 600px) {
+    .icon-btn { width: 34px; height: 34px; font-size: 1.05em; }
+    .send-btn { width: 40px; height: 40px; }
+    .input-bar { gap: 4px; padding: 6px 8px; padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
+    #text-input { padding: 9px 14px; font-size: 16px; } /* 16px — чтобы iOS не зумил при фокусе */
+    .auth-input { font-size: 16px; }
+    .header { padding: 8px 12px; padding-top: calc(8px + env(safe-area-inset-top, 0px)); }
+    .header h1 { font-size: 1.1em; }
+    .chat { padding: 12px 8px; }
+    .chat-header { padding: 8px 12px; }
+}
+/* Совсем узкие экраны */
+@media (max-width: 380px) {
+    .icon-btn { width: 30px; height: 30px; font-size: 0.95em; }
+    .send-btn { width: 36px; height: 36px; }
+    .input-bar { gap: 3px; }
+    #text-input { padding: 8px 12px; }
 }
 </style>
 </head>
@@ -394,10 +446,11 @@ body.dark .chat {
                 </div>
             </div>
         </div>
+        <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
         
         <div class="chat-area">
             <div class="chat-header">
-                <button class="back-btn" onclick="toggleSidebar()">←</button>
+                <button class="icon-btn menu-btn" id="menu-btn" onclick="toggleSidebar()">☰</button>
                 <h2 id="chat-title">Общий чат</h2>
             </div>
             <div class="chat" id="chat"></div>
@@ -461,6 +514,14 @@ const userAvatars = {};
 const messageElements = {};
 const privateMessageElements = {};
 
+// ===== 📱 АВТО-ОПРЕДЕЛЕНИЕ УСТРОЙСТВА =====
+const mobileQuery = window.matchMedia('(max-width: 768px)');
+let isMobile = mobileQuery.matches;
+mobileQuery.addEventListener('change', e => {
+    isMobile = e.matches;
+    if (!isMobile) closeSidebar(); // стал ПК — убираем мобильный сайдбар
+});
+
 function getClientId() {
     let id = localStorage.getItem('client_id');
     if (!id) { id = 'c_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('client_id', id); }
@@ -471,7 +532,7 @@ const $ = id => document.getElementById(id);
 const chat = $('chat'), textInput = $('text-input'), recordBtn = $('record-btn');
 const contextMenu = $('context-menu'), editBar = $('edit-bar');
 
-// AUTH
+// ===== AUTH =====
 function switchAuthMode() {
     isAuthMode = isAuthMode === 'login' ? 'register' : 'login';
     $('auth-submit').textContent = isAuthMode === 'login' ? 'Войти' : 'Зарегистрироваться';
@@ -512,7 +573,7 @@ function updateMyProfile() {
 }
 function logout() { localStorage.removeItem('client_id'); localStorage.removeItem('name'); location.reload(); }
 
-// AVATAR
+// ===== AVATAR =====
 function openAvatarModal() {
     $('avatar-modal').classList.add('active');
     $('avatar-preview').innerHTML = myAvatar ? `<img src="data:image/jpeg;base64,${myAvatar}">` : `<span>${myName[0]||'?'}</span>`;
@@ -534,12 +595,12 @@ $('avatar-input').onchange = async () => {
 };
 socket.on('avatar_updated', d => { userAvatars[d.username] = d.avatar; if (d.username === myName) { myAvatar = d.avatar; updateMyProfile(); } });
 
-// THEME
-function applyTheme(t) { document.body.classList.toggle('dark', t==='dark'); $('theme-btn').textContent = t==='dark'?'☀️':'🌙'; localStorage.setItem('theme', t); }
+// ===== THEME =====
+function applyTheme(t) { document.body.classList.toggle('dark', t==='dark'); $('theme-btn').textContent = t==='dark'?'☀️':''; localStorage.setItem('theme', t); }
 applyTheme(localStorage.getItem('theme') || 'light');
 $('theme-btn').onclick = () => applyTheme(document.body.classList.contains('dark') ? 'light' : 'dark');
 
-// HELPERS
+// ===== HELPERS =====
 const COLORS = ['#3390EC','#E53935','#43A047','#FB8C00','#8E24AA','#00ACC1','#6D4C41','#D81B60'];
 function avatarColor(n) { let h=0; for(let i=0;i<n.length;i++) h=(h*31+n.charCodeAt(i))>>>0; return COLORS[h%COLORS.length]; }
 function initials(n) { const p=n.trim().split(/\s+/); return ((p[0]?.[0]||'')+(p[1]?.[0]||'')).toUpperCase()||'?'; }
@@ -548,8 +609,17 @@ function fmtSize(b) { return b<1024?b+' Б':b<1048576?(b/1024).toFixed(1)+' КБ
 function timeNow() { const d=new Date(); return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0'); }
 function b64toBlob(b64,mime) { const c=atob(b64),a=new Array(c.length); for(let i=0;i<c.length;i++)a[i]=c.charCodeAt(i); return new Blob([new Uint8Array(a)],{type:mime}); }
 
-// SIDEBAR & CHAT SWITCHING
-function toggleSidebar() { $('sidebar').classList.toggle('open'); }
+// ===== 📱 SIDEBAR (мобильный) =====
+function toggleSidebar() {
+    if (!isMobile) return; // на ПК сайдбар всегда виден
+    $('sidebar').classList.toggle('open');
+    $('overlay').classList.toggle('active', $('sidebar').classList.contains('open'));
+}
+function closeSidebar() {
+    $('sidebar').classList.remove('open');
+    $('overlay').classList.remove('active');
+}
+
 function switchToGeneral() {
     currentChat = 'general';
     currentChatUser = null;
@@ -557,8 +627,7 @@ function switchToGeneral() {
     document.querySelectorAll('.chat-list-item').forEach(el => el.classList.remove('active'));
     document.querySelector('.chat-list-item').classList.add('active');
     chat.innerHTML = '';
-    socket.emit('get_public_history', {});
-    if (window.innerWidth <= 768) $('sidebar').classList.remove('open');
+    if (isMobile) closeSidebar();
 }
 function switchToPrivate(username) {
     currentChat = 'private';
@@ -569,17 +638,27 @@ function switchToPrivate(username) {
     if (item) item.classList.add('active');
     chat.innerHTML = '';
     socket.emit('get_private_history', { username: myName, with: username });
-    if (window.innerWidth <= 768) $('sidebar').classList.remove('open');
+    if (isMobile) closeSidebar();
 }
 
-// CONTEXT MENU
+// ===== CONTEXT MENU =====
 function showContextMenu(x, y, msgId, username, isPrivate) {
     if (username !== myName) return;
     contextMsgId = msgId;
     contextMsgUser = username;
     contextMsgIsPrivate = isPrivate || false;
-    contextMenu.style.left = Math.min(x, window.innerWidth-180)+'px';
-    contextMenu.style.top = Math.min(y, window.innerHeight-100)+'px';
+    // На мобильных меню по центру снизу, на ПК — возле курсора
+    if (isMobile) {
+        contextMenu.style.left = '50%';
+        contextMenu.style.top = 'auto';
+        contextMenu.style.bottom = '20px';
+        contextMenu.style.transform = 'translateX(-50%)';
+    } else {
+        contextMenu.style.left = Math.min(x, window.innerWidth-180)+'px';
+        contextMenu.style.top = Math.min(y, window.innerHeight-100)+'px';
+        contextMenu.style.bottom = 'auto';
+        contextMenu.style.transform = 'none';
+    }
     contextMenu.classList.add('visible');
 }
 function hideContextMenu() { contextMenu.classList.remove('visible'); }
@@ -589,7 +668,7 @@ document.addEventListener('click', e => {
     }
 });
 
-// EDIT / DELETE
+// ===== EDIT / DELETE =====
 function startEdit() {
     hideContextMenu();
     let el;
@@ -598,9 +677,9 @@ function startEdit() {
     } else {
         el = messageElements[contextMsgId];
     }
-    if (!el) { console.log('Не найден элемент', contextMsgId); return; }
+    if (!el) return;
     const t = el.querySelector('.text');
-    if (!t) { console.log('Не найден текст'); return; }
+    if (!t) return;
     editingMsgId = contextMsgId;
     textInput.value = t.textContent;
     textInput.focus();
@@ -657,7 +736,7 @@ socket.on('message_deleted', d => {
 });
 socket.on('error_msg', d => addMsg('system', '', '⚠️ ' + d.message));
 
-// MESSAGES
+// ===== MESSAGES =====
 function addMsg(type, username, content, extra = {}, isPrivate = false) {
     const row = document.createElement('div');
     row.className = 'msg-row'; row.dataset.user = username;
@@ -695,7 +774,6 @@ function addMsg(type, username, content, extra = {}, isPrivate = false) {
     }
     const meta = document.createElement('span'); meta.className = 'meta'; meta.textContent = timeNow(); bubble.appendChild(meta);
     
-    // Menu button
     const menuBtn = document.createElement('button');
     menuBtn.className = 'msg-menu-btn';
     menuBtn.textContent = '⋮';
@@ -717,16 +795,16 @@ function addMsg(type, username, content, extra = {}, isPrivate = false) {
     }
     lastSender = username; scrollDown();
     
-    // Long press for mobile
+    // Долгое нажатие для мобильных
     let pt;
-    bubble.addEventListener('touchstart', e => { pt = setTimeout(() => { showContextMenu(e.touches[0].clientX, e.touches[0].clientY, extra.id, username, isPrivate); navigator.vibrate?.(50); }, 500); }, {passive:true});
+    bubble.addEventListener('touchstart', e => { pt = setTimeout(() => { showContextMenu(0, 0, extra.id, username, isPrivate); navigator.vibrate?.(50); }, 500); }, {passive:true});
     bubble.addEventListener('touchend', () => clearTimeout(pt));
     bubble.addEventListener('touchmove', () => clearTimeout(pt));
     bubble.addEventListener('contextmenu', e => { e.preventDefault(); showContextMenu(e.clientX, e.clientY, extra.id, username, isPrivate); });
 }
 function scrollDown() { requestAnimationFrame(() => chat.scrollTop = chat.scrollHeight); }
 
-// SEND
+// ===== SEND =====
 function sendText() {
     const txt = textInput.value.trim(); if (!txt) return;
     if (editingMsgId) {
@@ -744,7 +822,7 @@ textInput.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDe
 textInput.oninput = () => { if (textInput.value.trim() && !isTyping) setTyping(true); clearTimeout(typingTimer); typingTimer = setTimeout(() => setTyping(false), 2000); };
 function setTyping(v) { if (v === isTyping) return; isTyping = v; socket.emit('typing', { username: myName, typing: v }); }
 
-// IMAGES
+// ===== IMAGES =====
 function compressImage(file, maxDim) {
     return new Promise((res, rej) => {
         const img = new Image(); const url = URL.createObjectURL(file);
@@ -765,7 +843,7 @@ $('img-in').onchange = async () => {
     }
 };
 
-// FILES
+// ===== FILES =====
 $('file-in').onchange = () => {
     const f = $('file-in').files[0]; $('file-in').value = '';
     if (!f || f.size > 10*1024*1024) { if(f) alert('Макс. 10 МБ'); return; }
@@ -774,7 +852,7 @@ $('file-in').onchange = () => {
     r.readAsArrayBuffer(f);
 };
 
-// VOICE
+// ===== VOICE =====
 recordBtn.onclick = async () => {
     if (!isRecording) {
         try {
@@ -795,7 +873,7 @@ recordBtn.onclick = async () => {
     }
 };
 
-// SOCKET EVENTS
+// ===== SOCKET EVENTS =====
 socket.on('text_history', msgs => msgs.forEach(m => addMsg('text', m.username, m.text, { id: m.id, edited: m.edited })));
 socket.on('text_message', d => { if (currentChat === 'general') addMsg('text', d.username, d.text, { id: d.id, edited: d.edited }); });
 socket.on('voice_message', d => { if (currentChat === 'general') addMsg('voice', d.username, d.audio, { id: d.id }); });
