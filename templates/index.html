@@ -519,7 +519,7 @@ const $ = id => document.getElementById(id);
 const chat = $('chat'), textInput = $('text-input'), recordBtn = $('record-btn');
 const contextMenu = $('context-menu'), editBar = $('edit-bar');
 
-// ===== 🔊 ЗВУКИ (Web Audio, без внешних файлов) =====
+// ===== 🔊 ЗВУКИ =====
 let soundOn = localStorage.getItem('sound_on') !== '0';
 let audioCtx = null;
 
@@ -529,7 +529,6 @@ function ensureAudioCtx() {
         if (audioCtx.state === 'suspended') audioCtx.resume();
     } catch(e) {}
 }
-// Разблокируем звук первым кликом пользователя
 document.addEventListener('click', ensureAudioCtx, { once: true });
 document.addEventListener('touchstart', ensureAudioCtx, { once: true });
 
@@ -539,7 +538,6 @@ function playSound(type) {
     if (!audioCtx) return;
     try {
         const t = audioCtx.currentTime;
-        // Входящее: "плим-плим" (как Telegram), исходящее: короткий "свист"
         const freqs = type === 'in' ? [880, 1174.66] : [1174.66, 880];
         freqs.forEach((f, i) => {
             const osc = audioCtx.createOscillator();
@@ -564,7 +562,7 @@ $('sound-btn').onclick = () => {
     soundOn = !soundOn;
     localStorage.setItem('sound_on', soundOn ? '1' : '0');
     updateSoundIcon();
-    if (soundOn) playSound('in'); // тестовый звук
+    if (soundOn) playSound('in');
 };
 updateSoundIcon();
 
@@ -595,7 +593,7 @@ async function toggleNotifications() {
 $('notif-btn').onclick = toggleNotifications;
 updateNotifIcon();
 
-// Регистрация Service Worker (нужен для уведомлений на Android)
+// Регистрация Service Worker (обязателен для уведомлений на Android)
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/static/sw.js').catch(() => {});
 }
@@ -603,11 +601,11 @@ if ('serviceWorker' in navigator) {
 function notify(title, body) {
     if (!notificationsOn) return;
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
-    // Через Service Worker (работает на Android), иначе обычный способ
-    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.ready.then(reg =>
-            reg.showNotification(title, { body, tag: 'pymsg-' + Date.now() })
-        ).catch(() => fallbackNotify(title, body));
+    // На Android уведомления работают ТОЛЬКО через Service Worker
+    if (navigator.serviceWorker) {
+        navigator.serviceWorker.ready.then(reg => {
+            return reg.showNotification(title, { body, tag: 'pymsg' });
+        }).catch(() => fallbackNotify(title, body));
     } else {
         fallbackNotify(title, body);
     }
@@ -622,12 +620,15 @@ function showTestNotification() {
     notify('PyMessenger', 'Уведомления включены! ✅');
 }
 
-// ===== 📳 ВИБРАЦИЯ + СЧЁТЧИК НЕПРОЧИТАННЫХ =====
-function onIncoming(fromName, preview) {
+// ===== 📳 ВИБРАЦИЯ + СЧЁТЧИК =====
+function onIncoming(fromName, preview, targetChat) {
     if (fromName === myName) return;
     playSound('in');
     if (isMobile && navigator.vibrate) navigator.vibrate([80, 40, 80]);
-    if (document.hidden) {
+    // Уведомляем, если вкладка свёрнута ИЛИ сообщение в ДРУГОЙ чат
+    const currentKey = currentChat === 'private' ? 'private:' + currentChatUser : 'general';
+    const lookingAtThisChat = !document.hidden && targetChat === currentKey;
+    if (!lookingAtThisChat) {
         unread++;
         document.title = `(${unread}) PyMessenger`;
         notify(fromName, preview);
@@ -704,7 +705,7 @@ $('avatar-input').onchange = async () => {
 socket.on('avatar_updated', d => { userAvatars[d.username] = d.avatar; if (d.username === myName) { myAvatar = d.avatar; updateMyProfile(); } });
 
 // ===== THEME =====
-function applyTheme(t) { document.body.classList.toggle('dark', t==='dark'); $('theme-btn').textContent = t==='dark'?'☀️':''; localStorage.setItem('theme', t); }
+function applyTheme(t) { document.body.classList.toggle('dark', t==='dark'); $('theme-btn').textContent = t==='dark'?'☀️':'🌙'; localStorage.setItem('theme', t); }
 applyTheme(localStorage.getItem('theme') || 'light');
 $('theme-btn').onclick = () => applyTheme(document.body.classList.contains('dark') ? 'light' : 'dark');
 
@@ -985,19 +986,19 @@ recordBtn.onclick = async () => {
 socket.on('text_history', msgs => msgs.forEach(m => addMsg('text', m.username, m.text, { id: m.id, edited: m.edited })));
 socket.on('text_message', d => {
     if (currentChat === 'general') addMsg('text', d.username, d.text, { id: d.id, edited: d.edited });
-    onIncoming(d.username, d.text.slice(0, 100));
+    onIncoming(d.username, d.text.slice(0, 100), 'general');
 });
 socket.on('voice_message', d => {
     if (currentChat === 'general') addMsg('voice', d.username, d.audio, { id: d.id });
-    onIncoming(d.username, '🎤 Голосовое сообщение');
+    onIncoming(d.username, '🎤 Голосовое сообщение', 'general');
 });
 socket.on('image_message', d => {
     if (currentChat === 'general') addMsg('image', d.username, d.image, { id: d.id, mime: d.mime });
-    onIncoming(d.username, '📷 Фото');
+    onIncoming(d.username, '📷 Фото', 'general');
 });
 socket.on('file_message', d => {
     if (currentChat === 'general') addMsg('file', d.username, d.file_data, { id: d.id, filename: d.filename, mime: d.mime, size: d.size });
-    onIncoming(d.username, '📎 ' + d.filename);
+    onIncoming(d.username, '📎 ' + d.filename, 'general');
 });
 
 socket.on('private_message', d => {
@@ -1005,7 +1006,7 @@ socket.on('private_message', d => {
     if (currentChat === 'private' && currentChatUser === otherUser) {
         addMsg('text', d.from, d.text, { id: d.id, edited: d.edited }, true);
     }
-    if (d.to === myName) onIncoming(d.from, d.text.slice(0, 100));
+    if (d.to === myName) onIncoming(d.from, d.text.slice(0, 100), 'private:' + d.from);
 });
 socket.on('private_history', msgs => {
     msgs.forEach(m => {
