@@ -31,7 +31,7 @@ body {
     display: flex; flex-direction: column;
 }
 
-/* ===== AUTH ===== */
+/* AUTH */
 .auth-screen {
     position: fixed; inset: 0; background: var(--bg);
     display: flex; align-items: center; justify-content: center;
@@ -86,7 +86,7 @@ body {
 }
 @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
 
-/* ===== CHAT APP ===== */
+/* CHAT APP */
 .chat-app { display: none; flex-direction: column; height: 100%; animation: fadeIn 0.5s ease-out; }
 .chat-app.visible { display: flex; }
 
@@ -113,7 +113,6 @@ body {
 
 .main-layout { display: flex; flex: 1; overflow: hidden; position: relative; }
 
-/* ===== SIDEBAR ===== */
 .sidebar {
     width: 280px; background: var(--surface);
     border-right: 1px solid var(--border);
@@ -150,7 +149,6 @@ body {
 .chat-list-item.active { background: var(--accent); color: white; }
 .chat-list-item .avatar { width: 36px; height: 36px; font-size: 0.8em; }
 
-/* ===== OVERLAY (затемнение под сайдбаром на мобильных) ===== */
 .overlay {
     display: none; position: absolute; inset: 0;
     background: rgba(0,0,0,0.5); z-index: 150;
@@ -158,7 +156,6 @@ body {
 }
 .overlay.active { display: block; }
 
-/* ===== CHAT AREA ===== */
 .chat-area { flex: 1; display: flex; flex-direction: column; background: var(--bg); min-width: 0; }
 .chat-header {
     padding: 10px 16px; background: var(--surface);
@@ -223,7 +220,6 @@ body.dark .chat {
 }
 .msg-row.my .file-link { background: rgba(0,0,0,0.1); color: var(--my-text); }
 
-/* ===== MESSAGE MENU BUTTON ===== */
 .msg-menu-btn {
     position: absolute; top: 50%; transform: translateY(-50%);
     opacity: 0; width: 28px; height: 28px; border: none;
@@ -237,7 +233,6 @@ body.dark .chat {
 .msg-row.other .msg-menu-btn { right: -36px; }
 .msg-row:hover .msg-menu-btn { opacity: 1; }
 
-/* ===== CONTEXT MENU ===== */
 .context-menu {
     position: fixed; z-index: 5000;
     background: var(--surface); border-radius: 12px;
@@ -255,7 +250,6 @@ body.dark .chat {
 .context-menu button:hover { background: var(--surface-2); }
 .context-menu button.danger { color: var(--danger); }
 
-/* ===== EDIT BAR ===== */
 .edit-bar {
     display: none; padding: 8px 16px; background: var(--surface);
     border-top: 1px solid var(--border); font-size: 0.85em; color: var(--accent);
@@ -282,7 +276,6 @@ body.dark .chat {
 }
 @keyframes shimmer { to { background-position: -200% 0; } }
 
-/* ===== INPUT BAR ===== */
 .input-bar {
     display: flex; align-items: center; gap: 6px;
     padding: 8px 12px; background: var(--surface);
@@ -309,7 +302,6 @@ body.dark .chat {
 }
 @keyframes rippleAnim { to { transform: scale(4); opacity: 0; } }
 
-/* ===== GALLERY / AVATAR MODAL ===== */
 .gallery {
     display: none; position: fixed; inset: 0;
     background: rgba(0,0,0,0.95); z-index: 1000;
@@ -360,11 +352,8 @@ body.dark .chat {
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
 .avatar.lg { width: 40px; height: 40px; font-size: 0.85em; }
 
-/* =====================================================
-   📱 МОБИЛЬНАЯ АДАПТАЦИЯ (код сам определяет устройство)
-   ===================================================== */
+/* 📱 МОБИЛЬНАЯ АДАПТАЦИЯ */
 @media (max-width: 768px) {
-    /* Сайдбар становится выезжающей панелью */
     .sidebar {
         position: absolute; left: 0; top: 0; bottom: 0;
         z-index: 200; transform: translateX(-100%);
@@ -373,34 +362,28 @@ body.dark .chat {
         width: min(280px, 80vw);
     }
     .sidebar.open { transform: translateX(0); }
-    /* Показываем кнопку меню */
     .menu-btn { display: flex; }
-    /* Сообщения шире */
     .msg-row { max-width: 92%; }
-    /* Кнопка меню сообщения: на тач-устройствах всегда видна полупрозрачной */
     .msg-menu-btn { width: 26px; height: 26px; font-size: 0.8em; top: 4px; transform: none; }
     .msg-row.my .msg-menu-btn { left: auto; right: 4px; }
     .msg-row.other .msg-menu-btn { right: auto; left: 4px; }
 }
-/* На тач-устройствах (без hover) кнопка меню видна всегда */
 @media (hover: none) {
     .msg-menu-btn { opacity: 0.55; }
     .msg-row.my .msg-menu-btn { background: rgba(0,0,0,0.12); color: var(--my-text); }
     .msg-row.other .msg-menu-btn { background: rgba(0,0,0,0.08); color: var(--text-2); }
 }
-/* Компактные кнопки на узких экранах */
 @media (max-width: 600px) {
     .icon-btn { width: 34px; height: 34px; font-size: 1.05em; }
     .send-btn { width: 40px; height: 40px; }
     .input-bar { gap: 4px; padding: 6px 8px; padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
-    #text-input { padding: 9px 14px; font-size: 16px; } /* 16px — чтобы iOS не зумил при фокусе */
+    #text-input { padding: 9px 14px; font-size: 16px; }
     .auth-input { font-size: 16px; }
     .header { padding: 8px 12px; padding-top: calc(8px + env(safe-area-inset-top, 0px)); }
     .header h1 { font-size: 1.1em; }
     .chat { padding: 12px 8px; }
     .chat-header { padding: 8px 12px; }
 }
-/* Совсем узкие экраны */
 @media (max-width: 380px) {
     .icon-btn { width: 30px; height: 30px; font-size: 0.95em; }
     .send-btn { width: 36px; height: 36px; }
@@ -475,7 +458,7 @@ body.dark .chat {
 </div>
 
 <div class="context-menu" id="context-menu">
-    <button onclick="startEdit()">✏️ Изменить</button>
+    <button id="menu-edit" onclick="startEdit()">✏️ Изменить</button>
     <button class="danger" onclick="deleteMsg()">🗑️ Удалить</button>
 </div>
 
@@ -514,12 +497,12 @@ const userAvatars = {};
 const messageElements = {};
 const privateMessageElements = {};
 
-// ===== 📱 АВТО-ОПРЕДЕЛЕНИЕ УСТРОЙСТВА =====
+// 📱 АВТО-ОПРЕДЕЛЕНИЕ УСТРОЙСТВА
 const mobileQuery = window.matchMedia('(max-width: 768px)');
 let isMobile = mobileQuery.matches;
 mobileQuery.addEventListener('change', e => {
     isMobile = e.matches;
-    if (!isMobile) closeSidebar(); // стал ПК — убираем мобильный сайдбар
+    if (!isMobile) closeSidebar();
 });
 
 function getClientId() {
@@ -532,7 +515,7 @@ const $ = id => document.getElementById(id);
 const chat = $('chat'), textInput = $('text-input'), recordBtn = $('record-btn');
 const contextMenu = $('context-menu'), editBar = $('edit-bar');
 
-// ===== AUTH =====
+// AUTH
 function switchAuthMode() {
     isAuthMode = isAuthMode === 'login' ? 'register' : 'login';
     $('auth-submit').textContent = isAuthMode === 'login' ? 'Войти' : 'Зарегистрироваться';
@@ -573,7 +556,7 @@ function updateMyProfile() {
 }
 function logout() { localStorage.removeItem('client_id'); localStorage.removeItem('name'); location.reload(); }
 
-// ===== AVATAR =====
+// AVATAR
 function openAvatarModal() {
     $('avatar-modal').classList.add('active');
     $('avatar-preview').innerHTML = myAvatar ? `<img src="data:image/jpeg;base64,${myAvatar}">` : `<span>${myName[0]||'?'}</span>`;
@@ -595,12 +578,12 @@ $('avatar-input').onchange = async () => {
 };
 socket.on('avatar_updated', d => { userAvatars[d.username] = d.avatar; if (d.username === myName) { myAvatar = d.avatar; updateMyProfile(); } });
 
-// ===== THEME =====
-function applyTheme(t) { document.body.classList.toggle('dark', t==='dark'); $('theme-btn').textContent = t==='dark'?'☀️':''; localStorage.setItem('theme', t); }
+// THEME
+function applyTheme(t) { document.body.classList.toggle('dark', t==='dark'); $('theme-btn').textContent = t==='dark'?'☀️':'🌙'; localStorage.setItem('theme', t); }
 applyTheme(localStorage.getItem('theme') || 'light');
 $('theme-btn').onclick = () => applyTheme(document.body.classList.contains('dark') ? 'light' : 'dark');
 
-// ===== HELPERS =====
+// HELPERS
 const COLORS = ['#3390EC','#E53935','#43A047','#FB8C00','#8E24AA','#00ACC1','#6D4C41','#D81B60'];
 function avatarColor(n) { let h=0; for(let i=0;i<n.length;i++) h=(h*31+n.charCodeAt(i))>>>0; return COLORS[h%COLORS.length]; }
 function initials(n) { const p=n.trim().split(/\s+/); return ((p[0]?.[0]||'')+(p[1]?.[0]||'')).toUpperCase()||'?'; }
@@ -609,9 +592,9 @@ function fmtSize(b) { return b<1024?b+' Б':b<1048576?(b/1024).toFixed(1)+' КБ
 function timeNow() { const d=new Date(); return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0'); }
 function b64toBlob(b64,mime) { const c=atob(b64),a=new Array(c.length); for(let i=0;i<c.length;i++)a[i]=c.charCodeAt(i); return new Blob([new Uint8Array(a)],{type:mime}); }
 
-// ===== 📱 SIDEBAR (мобильный) =====
+// SIDEBAR
 function toggleSidebar() {
-    if (!isMobile) return; // на ПК сайдбар всегда виден
+    if (!isMobile) return;
     $('sidebar').classList.toggle('open');
     $('overlay').classList.toggle('active', $('sidebar').classList.contains('open'));
 }
@@ -641,13 +624,14 @@ function switchToPrivate(username) {
     if (isMobile) closeSidebar();
 }
 
-// ===== CONTEXT MENU =====
-function showContextMenu(x, y, msgId, username, isPrivate) {
+// CONTEXT MENU
+function showContextMenu(x, y, msgId, username, isPrivate, msgType) {
     if (username !== myName) return;
     contextMsgId = msgId;
     contextMsgUser = username;
     contextMsgIsPrivate = isPrivate || false;
-    // На мобильных меню по центру снизу, на ПК — возле курсора
+    // «Изменить» только для текстовых
+    $('menu-edit').style.display = (msgType === 'text') ? 'flex' : 'none';
     if (isMobile) {
         contextMenu.style.left = '50%';
         contextMenu.style.top = 'auto';
@@ -668,7 +652,7 @@ document.addEventListener('click', e => {
     }
 });
 
-// ===== EDIT / DELETE =====
+// EDIT / DELETE
 function startEdit() {
     hideContextMenu();
     let el;
@@ -736,7 +720,7 @@ socket.on('message_deleted', d => {
 });
 socket.on('error_msg', d => addMsg('system', '', '⚠️ ' + d.message));
 
-// ===== MESSAGES =====
+// MESSAGES
 function addMsg(type, username, content, extra = {}, isPrivate = false) {
     const row = document.createElement('div');
     row.className = 'msg-row'; row.dataset.user = username;
@@ -780,7 +764,7 @@ function addMsg(type, username, content, extra = {}, isPrivate = false) {
     menuBtn.onclick = function(e) {
         e.stopPropagation();
         e.preventDefault();
-        showContextMenu(e.clientX, e.clientY, extra.id, username, isPrivate);
+        showContextMenu(e.clientX, e.clientY, extra.id, username, isPrivate, type);
     };
     row.appendChild(menuBtn);
     
@@ -795,16 +779,15 @@ function addMsg(type, username, content, extra = {}, isPrivate = false) {
     }
     lastSender = username; scrollDown();
     
-    // Долгое нажатие для мобильных
     let pt;
-    bubble.addEventListener('touchstart', e => { pt = setTimeout(() => { showContextMenu(0, 0, extra.id, username, isPrivate); navigator.vibrate?.(50); }, 500); }, {passive:true});
+    bubble.addEventListener('touchstart', e => { pt = setTimeout(() => { showContextMenu(0, 0, extra.id, username, isPrivate, type); navigator.vibrate?.(50); }, 500); }, {passive:true});
     bubble.addEventListener('touchend', () => clearTimeout(pt));
     bubble.addEventListener('touchmove', () => clearTimeout(pt));
-    bubble.addEventListener('contextmenu', e => { e.preventDefault(); showContextMenu(e.clientX, e.clientY, extra.id, username, isPrivate); });
+    bubble.addEventListener('contextmenu', e => { e.preventDefault(); showContextMenu(e.clientX, e.clientY, extra.id, username, isPrivate, type); });
 }
 function scrollDown() { requestAnimationFrame(() => chat.scrollTop = chat.scrollHeight); }
 
-// ===== SEND =====
+// SEND
 function sendText() {
     const txt = textInput.value.trim(); if (!txt) return;
     if (editingMsgId) {
@@ -822,7 +805,7 @@ textInput.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDe
 textInput.oninput = () => { if (textInput.value.trim() && !isTyping) setTyping(true); clearTimeout(typingTimer); typingTimer = setTimeout(() => setTyping(false), 2000); };
 function setTyping(v) { if (v === isTyping) return; isTyping = v; socket.emit('typing', { username: myName, typing: v }); }
 
-// ===== IMAGES =====
+// IMAGES
 function compressImage(file, maxDim) {
     return new Promise((res, rej) => {
         const img = new Image(); const url = URL.createObjectURL(file);
@@ -843,7 +826,7 @@ $('img-in').onchange = async () => {
     }
 };
 
-// ===== FILES =====
+// FILES
 $('file-in').onchange = () => {
     const f = $('file-in').files[0]; $('file-in').value = '';
     if (!f || f.size > 10*1024*1024) { if(f) alert('Макс. 10 МБ'); return; }
@@ -852,7 +835,7 @@ $('file-in').onchange = () => {
     r.readAsArrayBuffer(f);
 };
 
-// ===== VOICE =====
+// VOICE
 recordBtn.onclick = async () => {
     if (!isRecording) {
         try {
@@ -873,7 +856,7 @@ recordBtn.onclick = async () => {
     }
 };
 
-// ===== SOCKET EVENTS =====
+// SOCKET EVENTS
 socket.on('text_history', msgs => msgs.forEach(m => addMsg('text', m.username, m.text, { id: m.id, edited: m.edited })));
 socket.on('text_message', d => { if (currentChat === 'general') addMsg('text', d.username, d.text, { id: d.id, edited: d.edited }); });
 socket.on('voice_message', d => { if (currentChat === 'general') addMsg('voice', d.username, d.audio, { id: d.id }); });
