@@ -91,7 +91,7 @@ body {
 .chat-app.visible { display: flex; }
 
 .header {
-    display: flex; align-items: center; gap: 12px;
+    display: flex; align-items: center; gap: 8px;
     padding: 10px 16px; background: var(--surface);
     border-bottom: 1px solid var(--border);
     padding-top: calc(10px + env(safe-area-inset-top, 0px)); z-index: 10;
@@ -110,6 +110,7 @@ body {
 }
 .icon-btn:hover { background: var(--surface-2); }
 .icon-btn:active { transform: scale(0.9); }
+.icon-btn.off { opacity: 0.4; }
 
 .main-layout { display: flex; flex: 1; overflow: hidden; position: relative; }
 
@@ -379,8 +380,8 @@ body.dark .chat {
     .input-bar { gap: 4px; padding: 6px 8px; padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
     #text-input { padding: 9px 14px; font-size: 16px; }
     .auth-input { font-size: 16px; }
-    .header { padding: 8px 12px; padding-top: calc(8px + env(safe-area-inset-top, 0px)); }
-    .header h1 { font-size: 1.1em; }
+    .header { padding: 8px 10px; padding-top: calc(8px + env(safe-area-inset-top, 0px)); gap: 4px; }
+    .header h1 { font-size: 1.05em; }
     .chat { padding: 12px 8px; }
     .chat-header { padding: 8px 12px; }
 }
@@ -412,7 +413,9 @@ body.dark .chat {
 <div class="chat-app" id="chat-app">
     <div class="header">
         <h1>PyMessenger</h1>
-        <button class="icon-btn" id="theme-btn">🌙</button>
+        <button class="icon-btn" id="sound-btn" title="Звук">🔊</button>
+        <button class="icon-btn" id="notif-btn" title="Уведомления">🔔</button>
+        <button class="icon-btn" id="theme-btn" title="Тема">🌙</button>
     </div>
     
     <div class="main-layout">
@@ -493,6 +496,7 @@ let contextMsgUser = null;
 let contextMsgIsPrivate = false;
 let currentChat = 'general';
 let currentChatUser = null;
+let unread = 0;
 const userAvatars = {};
 const messageElements = {};
 const privateMessageElements = {};
@@ -515,7 +519,128 @@ const $ = id => document.getElementById(id);
 const chat = $('chat'), textInput = $('text-input'), recordBtn = $('record-btn');
 const contextMenu = $('context-menu'), editBar = $('edit-bar');
 
-// AUTH
+// ===== 🔊 ЗВУКИ (Web Audio, без внешних файлов) =====
+let soundOn = localStorage.getItem('sound_on') !== '0';
+let audioCtx = null;
+
+function ensureAudioCtx() {
+    try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch(e) {}
+}
+// Разблокируем звук первым кликом пользователя
+document.addEventListener('click', ensureAudioCtx, { once: true });
+document.addEventListener('touchstart', ensureAudioCtx, { once: true });
+
+function playSound(type) {
+    if (!soundOn) return;
+    ensureAudioCtx();
+    if (!audioCtx) return;
+    try {
+        const t = audioCtx.currentTime;
+        // Входящее: "плим-плим" (как Telegram), исходящее: короткий "свист"
+        const freqs = type === 'in' ? [880, 1174.66] : [1174.66, 880];
+        freqs.forEach((f, i) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = f;
+            const start = t + i * 0.09;
+            gain.gain.setValueAtTime(0, start);
+            gain.gain.linearRampToValueAtTime(0.22, start + 0.015);
+            gain.gain.exponentialRampToValueAtTime(0.001, start + 0.18);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(start); osc.stop(start + 0.2);
+        });
+    } catch(e) {}
+}
+
+function updateSoundIcon() {
+    $('sound-btn').textContent = soundOn ? '🔊' : '🔇';
+    $('sound-btn').classList.toggle('off', !soundOn);
+}
+$('sound-btn').onclick = () => {
+    soundOn = !soundOn;
+    localStorage.setItem('sound_on', soundOn ? '1' : '0');
+    updateSoundIcon();
+    if (soundOn) playSound('in'); // тестовый звук
+};
+updateSoundIcon();
+
+// ===== 🔔 УВЕДОМЛЕНИЯ =====
+let notificationsOn = localStorage.getItem('notif_on') === '1';
+
+function updateNotifIcon() {
+    $('notif-btn').textContent = notificationsOn ? '🔔' : '🔕';
+    $('notif-btn').classList.toggle('off', !notificationsOn);
+}
+
+async function toggleNotifications() {
+    if (!('Notification' in window)) { alert('Браузер не поддерживает уведомления'); return; }
+    if (Notification.permission === 'granted') {
+        notificationsOn = !notificationsOn;
+        if (notificationsOn) showTestNotification();
+    } else if (Notification.permission === 'denied') {
+        alert('Уведомления заблокированы в настройках браузера. Разреши их вручную для этого сайта.');
+        return;
+    } else {
+        const p = await Notification.requestPermission();
+        notificationsOn = (p === 'granted');
+        if (notificationsOn) showTestNotification();
+    }
+    localStorage.setItem('notif_on', notificationsOn ? '1' : '0');
+    updateNotifIcon();
+}
+$('notif-btn').onclick = toggleNotifications;
+updateNotifIcon();
+
+// Регистрация Service Worker (нужен для уведомлений на Android)
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+}
+
+function notify(title, body) {
+    if (!notificationsOn) return;
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    // Через Service Worker (работает на Android), иначе обычный способ
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.ready.then(reg =>
+            reg.showNotification(title, { body, tag: 'pymsg-' + Date.now() })
+        ).catch(() => fallbackNotify(title, body));
+    } else {
+        fallbackNotify(title, body);
+    }
+}
+function fallbackNotify(title, body) {
+    try {
+        const n = new Notification(title, { body });
+        n.onclick = () => { window.focus(); n.close(); };
+    } catch(e) {}
+}
+function showTestNotification() {
+    notify('PyMessenger', 'Уведомления включены! ✅');
+}
+
+// ===== 📳 ВИБРАЦИЯ + СЧЁТЧИК НЕПРОЧИТАННЫХ =====
+function onIncoming(fromName, preview) {
+    if (fromName === myName) return;
+    playSound('in');
+    if (isMobile && navigator.vibrate) navigator.vibrate([80, 40, 80]);
+    if (document.hidden) {
+        unread++;
+        document.title = `(${unread}) PyMessenger`;
+        notify(fromName, preview);
+    }
+}
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+        unread = 0;
+        document.title = 'PyMessenger';
+    }
+});
+
+// ===== AUTH =====
 function switchAuthMode() {
     isAuthMode = isAuthMode === 'login' ? 'register' : 'login';
     $('auth-submit').textContent = isAuthMode === 'login' ? 'Войти' : 'Зарегистрироваться';
@@ -556,7 +681,7 @@ function updateMyProfile() {
 }
 function logout() { localStorage.removeItem('client_id'); localStorage.removeItem('name'); location.reload(); }
 
-// AVATAR
+// ===== AVATAR =====
 function openAvatarModal() {
     $('avatar-modal').classList.add('active');
     $('avatar-preview').innerHTML = myAvatar ? `<img src="data:image/jpeg;base64,${myAvatar}">` : `<span>${myName[0]||'?'}</span>`;
@@ -578,12 +703,12 @@ $('avatar-input').onchange = async () => {
 };
 socket.on('avatar_updated', d => { userAvatars[d.username] = d.avatar; if (d.username === myName) { myAvatar = d.avatar; updateMyProfile(); } });
 
-// THEME
-function applyTheme(t) { document.body.classList.toggle('dark', t==='dark'); $('theme-btn').textContent = t==='dark'?'☀️':'🌙'; localStorage.setItem('theme', t); }
+// ===== THEME =====
+function applyTheme(t) { document.body.classList.toggle('dark', t==='dark'); $('theme-btn').textContent = t==='dark'?'☀️':''; localStorage.setItem('theme', t); }
 applyTheme(localStorage.getItem('theme') || 'light');
 $('theme-btn').onclick = () => applyTheme(document.body.classList.contains('dark') ? 'light' : 'dark');
 
-// HELPERS
+// ===== HELPERS =====
 const COLORS = ['#3390EC','#E53935','#43A047','#FB8C00','#8E24AA','#00ACC1','#6D4C41','#D81B60'];
 function avatarColor(n) { let h=0; for(let i=0;i<n.length;i++) h=(h*31+n.charCodeAt(i))>>>0; return COLORS[h%COLORS.length]; }
 function initials(n) { const p=n.trim().split(/\s+/); return ((p[0]?.[0]||'')+(p[1]?.[0]||'')).toUpperCase()||'?'; }
@@ -592,7 +717,7 @@ function fmtSize(b) { return b<1024?b+' Б':b<1048576?(b/1024).toFixed(1)+' КБ
 function timeNow() { const d=new Date(); return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0'); }
 function b64toBlob(b64,mime) { const c=atob(b64),a=new Array(c.length); for(let i=0;i<c.length;i++)a[i]=c.charCodeAt(i); return new Blob([new Uint8Array(a)],{type:mime}); }
 
-// SIDEBAR
+// ===== SIDEBAR =====
 function toggleSidebar() {
     if (!isMobile) return;
     $('sidebar').classList.toggle('open');
@@ -602,7 +727,6 @@ function closeSidebar() {
     $('sidebar').classList.remove('open');
     $('overlay').classList.remove('active');
 }
-
 function switchToGeneral() {
     currentChat = 'general';
     currentChatUser = null;
@@ -624,13 +748,12 @@ function switchToPrivate(username) {
     if (isMobile) closeSidebar();
 }
 
-// CONTEXT MENU
+// ===== CONTEXT MENU =====
 function showContextMenu(x, y, msgId, username, isPrivate, msgType) {
     if (username !== myName) return;
     contextMsgId = msgId;
     contextMsgUser = username;
     contextMsgIsPrivate = isPrivate || false;
-    // «Изменить» только для текстовых
     $('menu-edit').style.display = (msgType === 'text') ? 'flex' : 'none';
     if (isMobile) {
         contextMenu.style.left = '50%';
@@ -652,7 +775,7 @@ document.addEventListener('click', e => {
     }
 });
 
-// EDIT / DELETE
+// ===== EDIT / DELETE =====
 function startEdit() {
     hideContextMenu();
     let el;
@@ -720,7 +843,7 @@ socket.on('message_deleted', d => {
 });
 socket.on('error_msg', d => addMsg('system', '', '⚠️ ' + d.message));
 
-// MESSAGES
+// ===== MESSAGES =====
 function addMsg(type, username, content, extra = {}, isPrivate = false) {
     const row = document.createElement('div');
     row.className = 'msg-row'; row.dataset.user = username;
@@ -787,7 +910,7 @@ function addMsg(type, username, content, extra = {}, isPrivate = false) {
 }
 function scrollDown() { requestAnimationFrame(() => chat.scrollTop = chat.scrollHeight); }
 
-// SEND
+// ===== SEND =====
 function sendText() {
     const txt = textInput.value.trim(); if (!txt) return;
     if (editingMsgId) {
@@ -798,6 +921,7 @@ function sendText() {
     } else {
         socket.emit('text_message', { username: myName, text: txt });
     }
+    playSound('out');
     textInput.value = ''; setTyping(false);
 }
 $('send-btn').onclick = sendText;
@@ -805,7 +929,7 @@ textInput.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDe
 textInput.oninput = () => { if (textInput.value.trim() && !isTyping) setTyping(true); clearTimeout(typingTimer); typingTimer = setTimeout(() => setTyping(false), 2000); };
 function setTyping(v) { if (v === isTyping) return; isTyping = v; socket.emit('typing', { username: myName, typing: v }); }
 
-// IMAGES
+// ===== IMAGES =====
 function compressImage(file, maxDim) {
     return new Promise((res, rej) => {
         const img = new Image(); const url = URL.createObjectURL(file);
@@ -823,19 +947,20 @@ $('img-in').onchange = async () => {
     for (const f of files) { if (f.size > 5*1024*1024) { alert('Макс. 5 МБ'); continue; }
         const blob = await compressImage(f, 1920); const buf = await blob.arrayBuffer();
         socket.emit('image_message', { username: myName, image: buf, mime: blob.type });
+        playSound('out');
     }
 };
 
-// FILES
+// ===== FILES =====
 $('file-in').onchange = () => {
     const f = $('file-in').files[0]; $('file-in').value = '';
     if (!f || f.size > 10*1024*1024) { if(f) alert('Макс. 10 МБ'); return; }
     const r = new FileReader();
-    r.onload = () => socket.emit('file_message', { username: myName, filename: f.name, file_data: r.result, mime: f.type||'application/octet-stream', size: f.size });
+    r.onload = () => { socket.emit('file_message', { username: myName, filename: f.name, file_data: r.result, mime: f.type||'application/octet-stream', size: f.size }); playSound('out'); };
     r.readAsArrayBuffer(f);
 };
 
-// VOICE
+// ===== VOICE =====
 recordBtn.onclick = async () => {
     if (!isRecording) {
         try {
@@ -845,7 +970,7 @@ recordBtn.onclick = async () => {
             mediaRecorder.onstop = () => {
                 const blob = new Blob(audioChunks, { type: 'audio/webm' });
                 stream.getTracks().forEach(t => t.stop());
-                blob.arrayBuffer().then(buf => socket.emit('voice_message', { username: myName, audio: buf }));
+                blob.arrayBuffer().then(buf => { socket.emit('voice_message', { username: myName, audio: buf }); playSound('out'); });
             };
             mediaRecorder.start(); isRecording = true;
             recordBtn.classList.add('recording'); recordBtn.textContent = '⏹';
@@ -856,18 +981,31 @@ recordBtn.onclick = async () => {
     }
 };
 
-// SOCKET EVENTS
+// ===== SOCKET EVENTS =====
 socket.on('text_history', msgs => msgs.forEach(m => addMsg('text', m.username, m.text, { id: m.id, edited: m.edited })));
-socket.on('text_message', d => { if (currentChat === 'general') addMsg('text', d.username, d.text, { id: d.id, edited: d.edited }); });
-socket.on('voice_message', d => { if (currentChat === 'general') addMsg('voice', d.username, d.audio, { id: d.id }); });
-socket.on('image_message', d => { if (currentChat === 'general') addMsg('image', d.username, d.image, { id: d.id, mime: d.mime }); });
-socket.on('file_message', d => { if (currentChat === 'general') addMsg('file', d.username, d.file_data, { id: d.id, filename: d.filename, mime: d.mime, size: d.size }); });
+socket.on('text_message', d => {
+    if (currentChat === 'general') addMsg('text', d.username, d.text, { id: d.id, edited: d.edited });
+    onIncoming(d.username, d.text.slice(0, 100));
+});
+socket.on('voice_message', d => {
+    if (currentChat === 'general') addMsg('voice', d.username, d.audio, { id: d.id });
+    onIncoming(d.username, '🎤 Голосовое сообщение');
+});
+socket.on('image_message', d => {
+    if (currentChat === 'general') addMsg('image', d.username, d.image, { id: d.id, mime: d.mime });
+    onIncoming(d.username, '📷 Фото');
+});
+socket.on('file_message', d => {
+    if (currentChat === 'general') addMsg('file', d.username, d.file_data, { id: d.id, filename: d.filename, mime: d.mime, size: d.size });
+    onIncoming(d.username, '📎 ' + d.filename);
+});
 
 socket.on('private_message', d => {
     const otherUser = d.from === myName ? d.to : d.from;
     if (currentChat === 'private' && currentChatUser === otherUser) {
         addMsg('text', d.from, d.text, { id: d.id, edited: d.edited }, true);
     }
+    if (d.to === myName) onIncoming(d.from, d.text.slice(0, 100));
 });
 socket.on('private_history', msgs => {
     msgs.forEach(m => {
