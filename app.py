@@ -24,31 +24,58 @@ connected_users = {}
 active_sessions = {}
 users_db = {}
 
-# ===== GOOGLE SHEETS (простое облако) =====
-GSHEET_URL = os.environ.get('GSHEET_URL', '')
+# ===== JSONBIN CLOUD =====
+JSONBIN_ID = os.environ.get('JSONBIN_ID', '')
+JSONBIN_KEY = os.environ.get('JSONBIN_KEY', '')
+JSONBIN_URL = f'https://api.jsonbin.io/v3/b/{JSONBIN_ID}'
 
 def save_to_cloud():
-    """Сохраняет данные в Google Таблицу"""
-    if not GSHEET_URL:
-        print("⚠️ GSHEET_URL не задан, сохраняю только локально")
+    if not JSONBIN_ID or not JSONBIN_KEY:
+        print("⚠️ JSONBIN_ID или JSONBIN_KEY не заданы")
         return
     try:
-        resp = requests.post(GSHEET_URL, json=users_db, timeout=10)
-        print(f"💾 Сохранено в облако: {resp.status_code}")
+        data_to_save = {}
+        for username, user_data in users_db.items():
+            data_to_save[username] = {
+                'password_hash': user_data.get('password_hash'),
+                'salt': user_data.get('salt'),
+                'avatar': None
+            }
+        payload = {"users": data_to_save}
+        resp = requests.put(
+            JSONBIN_URL,
+            json=payload,
+            headers={'X-Master-Key': JSONBIN_KEY, 'Content-Type': 'application/json'},
+            timeout=10
+        )
+        if resp.status_code == 200:
+            print(f"💾 Сохранено в облако: {len(data_to_save)} пользователей")
+        else:
+            print(f"❌ Ошибка облака: {resp.status_code} - {resp.text[:200]}")
     except Exception as e:
         print(f"❌ Ошибка сохранения в облако: {e}")
 
 def load_from_cloud():
-    """Загружает данные из Google Таблицы"""
     global users_db
-    if not GSHEET_URL:
+    if not JSONBIN_ID or not JSONBIN_KEY:
         return False
     try:
-        resp = requests.get(GSHEET_URL, timeout=10)
+        resp = requests.get(
+            JSONBIN_URL + '/latest',
+            headers={'X-Master-Key': JSONBIN_KEY},
+            timeout=10
+        )
         if resp.status_code == 200:
-            users_db = resp.json()
-            print(f"✅ Загружено {len(users_db)} пользователей из облака")
-            return True
+            cloud_data = resp.json().get('record', {}).get('users', {})
+            if cloud_data:
+                for username, user_data in cloud_data.items():
+                    if username in users_db:
+                        users_db[username]['password_hash'] = user_data.get('password_hash')
+                        users_db[username]['salt'] = user_data.get('salt')
+                    else:
+                        users_db[username] = user_data
+                print(f"✅ Загружено {len(users_db)} пользователей из облака")
+                return True
     except Exception as e:
         print(f"❌ Ошибка загрузки из облака: {e}")
     return False
@@ -58,10 +85,8 @@ USERS_FILE = os.path.join(os.path.dirname(__file__), 'users.json')
 
 def load_db():
     global users_db
-    # Сначала облако
     if load_from_cloud():
         return
-    # Запасной: локальный файл
     try:
         if os.path.exists(USERS_FILE):
             with open(USERS_FILE, 'r', encoding='utf-8') as f:
