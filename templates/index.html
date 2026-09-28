@@ -90,7 +90,6 @@ body {
 .chat-app { display: none; flex-direction: column; height: 100%; animation: fadeIn 0.5s ease-out; }
 .chat-app.visible { display: flex; }
 
-/* HEADER */
 .header {
     display: flex; align-items: center; gap: 12px;
     padding: 12px 16px; background: var(--surface);
@@ -111,12 +110,8 @@ body {
 .icon-btn:hover { background: var(--surface-2); }
 .icon-btn:active { transform: scale(0.9); }
 
-/* MAIN LAYOUT */
-.main-layout {
-    display: flex; flex: 1; overflow: hidden;
-}
+.main-layout { display: flex; flex: 1; overflow: hidden; }
 
-/* SIDEBAR */
 .sidebar {
     width: 280px; background: var(--surface);
     border-right: 1px solid var(--border);
@@ -142,10 +137,7 @@ body {
     border-radius: 20px; font-size: 0.8em; cursor: pointer;
 }
 
-/* CHAT LIST */
-.chat-list {
-    flex: 1; overflow-y: auto;
-}
+.chat-list { flex: 1; overflow-y: auto; }
 .chat-list-item {
     padding: 12px 16px; cursor: pointer;
     border-bottom: 1px solid var(--border);
@@ -155,15 +147,9 @@ body {
 .chat-list-item:hover { background: var(--surface-2); }
 .chat-list-item.active { background: var(--accent); color: white; }
 .chat-list-item.active .avatar { border-color: white; }
-.chat-list-item .avatar {
-    width: 36px; height: 36px; font-size: 0.8em;
-}
+.chat-list-item .avatar { width: 36px; height: 36px; font-size: 0.8em; }
 
-/* MAIN CHAT AREA */
-.chat-area {
-    flex: 1; display: flex; flex-direction: column;
-    background: var(--bg);
-}
+.chat-area { flex: 1; display: flex; flex-direction: column; background: var(--bg); }
 .chat-header {
     padding: 12px 16px; background: var(--surface);
     border-bottom: 1px solid var(--border);
@@ -173,8 +159,7 @@ body {
 .back-btn {
     display: none; width: 36px; height: 36px;
     border: none; background: var(--surface-2);
-    border-radius: 50%; cursor: pointer;
-    font-size: 1.2em;
+    border-radius: 50%; cursor: pointer; font-size: 1.2em;
 }
 
 .chat {
@@ -232,21 +217,18 @@ body.dark .chat {
 }
 .msg-row.my .file-link { background: rgba(0,0,0,0.1); color: var(--my-text); }
 
-/* MESSAGE MENU BUTTON */
 .msg-menu-btn {
     position: absolute; top: 8px; opacity: 0;
     width: 28px; height: 28px; border: none;
     background: var(--surface-2); border-radius: 50%;
     cursor: pointer; font-size: 0.9em;
     display: flex; align-items: center; justify-content: center;
-    transition: opacity 0.2s;
-    z-index: 10;
+    transition: opacity 0.2s; z-index: 10;
 }
 .msg-row.my .msg-menu-btn { left: -36px; }
 .msg-row.other .msg-menu-btn { right: -36px; }
 .msg-row:hover .msg-menu-btn { opacity: 1; }
 
-/* CONTEXT MENU */
 .context-menu {
     position: fixed; z-index: 5000;
     background: var(--surface); border-radius: 12px;
@@ -264,7 +246,6 @@ body.dark .chat {
 .context-menu button:hover { background: var(--surface-2); }
 .context-menu button.danger { color: var(--danger); }
 
-/* EDIT BAR */
 .edit-bar {
     display: none; padding: 8px 16px; background: var(--surface);
     border-top: 1px solid var(--border); font-size: 0.85em; color: var(--accent);
@@ -354,7 +335,6 @@ body.dark .chat {
 .msg-row.deleting { animation: msgOut 0.3s ease-in forwards; }
 @keyframes msgOut { to { opacity: 0; transform: translateX(30px) scale(0.9); } }
 
-/* AVATAR */
 .avatar {
     width: 28px; height: 28px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
@@ -364,7 +344,6 @@ body.dark .chat {
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
 .avatar.lg { width: 40px; height: 40px; font-size: 0.85em; }
 
-/* MOBILE */
 @media (max-width: 768px) {
     .sidebar {
         position: absolute; left: 0; top: 0; bottom: 0;
@@ -472,10 +451,15 @@ let clientId = getClientId();
 let isAuthMode = 'login', lastSender = null;
 let mediaRecorder, audioChunks = [], isRecording = false;
 let typingTimer, isTyping = false;
-let editingMsgId = null, contextMsgId = null, contextMsgUser = null;
-let currentChat = 'general'; // 'general' или username
+let editingMsgId = null;
+let contextMsgId = null;
+let contextMsgUser = null;
+let contextMsgIsPrivate = false;
+let currentChat = 'general';
 let currentChatUser = null;
-const userAvatars = {}, messageElements = {}, privateMessageElements = {};
+const userAvatars = {};
+const messageElements = {};
+const privateMessageElements = {};
 
 function getClientId() {
     let id = localStorage.getItem('client_id');
@@ -573,7 +557,6 @@ function switchToGeneral() {
     document.querySelectorAll('.chat-list-item').forEach(el => el.classList.remove('active'));
     document.querySelector('.chat-list-item').classList.add('active');
     chat.innerHTML = '';
-    messageElements.general = {};
     socket.emit('get_public_history', {});
     if (window.innerWidth <= 768) $('sidebar').classList.remove('open');
 }
@@ -585,31 +568,39 @@ function switchToPrivate(username) {
     const item = document.querySelector(`[data-user="${CSS.escape(username)}"]`);
     if (item) item.classList.add('active');
     chat.innerHTML = '';
-    privateMessageElements[username] = {};
     socket.emit('get_private_history', { username: myName, with: username });
     if (window.innerWidth <= 768) $('sidebar').classList.remove('open');
 }
 
 // CONTEXT MENU
-function showContextMenu(x, y, msgId, username, isPrivate = false) {
+function showContextMenu(x, y, msgId, username, isPrivate) {
     if (username !== myName) return;
     contextMsgId = msgId;
     contextMsgUser = username;
-    contextMsgIsPrivate = isPrivate;
+    contextMsgIsPrivate = isPrivate || false;
     contextMenu.style.left = Math.min(x, window.innerWidth-180)+'px';
     contextMenu.style.top = Math.min(y, window.innerHeight-100)+'px';
     contextMenu.classList.add('visible');
 }
-function hideContextMenu() { contextMenu.classList.remove('visible'); contextMsgId = null; }
-document.addEventListener('click', e => { if (!contextMenu.contains(e.target)) hideContextMenu(); });
+function hideContextMenu() { contextMenu.classList.remove('visible'); }
+document.addEventListener('click', e => {
+    if (!contextMenu.contains(e.target) && !e.target.classList.contains('msg-menu-btn')) {
+        hideContextMenu();
+    }
+});
 
 // EDIT / DELETE
 function startEdit() {
     hideContextMenu();
-    const el = contextMsgIsPrivate ? privateMessageElements[currentChatUser]?.[contextMsgId] : messageElements[contextMsgId];
-    if (!el) return;
+    let el;
+    if (contextMsgIsPrivate && currentChatUser) {
+        el = privateMessageElements[currentChatUser]?.[contextMsgId];
+    } else {
+        el = messageElements[contextMsgId];
+    }
+    if (!el) { console.log('Не найден элемент', contextMsgId); return; }
     const t = el.querySelector('.text');
-    if (!t) return;
+    if (!t) { console.log('Не найден текст'); return; }
     editingMsgId = contextMsgId;
     textInput.value = t.textContent;
     textInput.focus();
@@ -618,7 +609,9 @@ function startEdit() {
 function cancelEdit() { editingMsgId = null; textInput.value = ''; editBar.classList.remove('active'); }
 function deleteMsg() {
     hideContextMenu();
-    if (contextMsgId) socket.emit('delete_message', { msg_id: contextMsgId, username: myName, is_private: contextMsgIsPrivate });
+    if (contextMsgId) {
+        socket.emit('delete_message', { msg_id: contextMsgId, username: myName, is_private: contextMsgIsPrivate });
+    }
 }
 
 socket.on('message_edited', d => {
@@ -634,7 +627,8 @@ socket.on('message_edited', d => {
     }
 });
 socket.on('private_message_edited', d => {
-    const el = privateMessageElements[d.to === myName ? d.from : d.to]?.[d.id];
+    const otherUser = d.from === myName ? d.to : d.from;
+    const el = privateMessageElements[otherUser]?.[d.id];
     if (el) {
         const t = el.querySelector('.text');
         if (t) t.textContent = d.text;
@@ -646,8 +640,20 @@ socket.on('private_message_edited', d => {
     }
 });
 socket.on('message_deleted', d => {
-    const el = messageElements[d.id] || Object.values(privateMessageElements).flatMap(m => Object.values(m)).find(e => e.dataset.msgId === d.id);
-    if (el) { el.classList.add('deleting'); setTimeout(() => el.remove(), 300); }
+    const el = messageElements[d.id];
+    if (el) {
+        el.classList.add('deleting');
+        setTimeout(() => { el.remove(); delete messageElements[d.id]; }, 300);
+        return;
+    }
+    for (const user in privateMessageElements) {
+        const pel = privateMessageElements[user][d.id];
+        if (pel) {
+            pel.classList.add('deleting');
+            setTimeout(() => { pel.remove(); delete privateMessageElements[user][d.id]; }, 300);
+            return;
+        }
+    }
 });
 socket.on('error_msg', d => addMsg('system', '', '⚠️ ' + d.message));
 
@@ -693,7 +699,11 @@ function addMsg(type, username, content, extra = {}, isPrivate = false) {
     const menuBtn = document.createElement('button');
     menuBtn.className = 'msg-menu-btn';
     menuBtn.textContent = '⋮';
-    menuBtn.onclick = e => { e.stopPropagation(); showContextMenu(e.clientX, e.clientY, extra.id, username, isPrivate); };
+    menuBtn.onclick = function(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        showContextMenu(e.clientX, e.clientY, extra.id, username, isPrivate);
+    };
     row.appendChild(menuBtn);
     
     row.appendChild(bubble); chat.appendChild(row);
@@ -706,6 +716,8 @@ function addMsg(type, username, content, extra = {}, isPrivate = false) {
         }
     }
     lastSender = username; scrollDown();
+    
+    // Long press for mobile
     let pt;
     bubble.addEventListener('touchstart', e => { pt = setTimeout(() => { showContextMenu(e.touches[0].clientX, e.touches[0].clientY, extra.id, username, isPrivate); navigator.vibrate?.(50); }, 500); }, {passive:true});
     bubble.addEventListener('touchend', () => clearTimeout(pt));
@@ -803,8 +815,8 @@ socket.on('private_history', msgs => {
     });
 });
 
-socket.on('user_joined', d => addMsg('system', '', d.msg));
-socket.on('user_left', d => addMsg('system', '', d.msg));
+socket.on('user_joined', d => { if (currentChat === 'general') addMsg('system', '', d.msg); });
+socket.on('user_left', d => { if (currentChat === 'general') addMsg('system', '', d.msg); });
 socket.on('update_user_list', users => {
     const el = $('chat-list');
     const existing = el.querySelectorAll('.chat-list-item[data-user]');
